@@ -13,6 +13,7 @@ from flexloop.routers.progress import router as progress_router
 from flexloop.routers.prs import router as prs_router
 from flexloop.routers.sync import router as sync_router
 from flexloop.routers.templates import router as templates_router
+from flexloop.routers.warmup import router as warmup_router
 from flexloop.routers.workouts import router as workouts_router
 
 
@@ -40,6 +41,7 @@ app.include_router(backup_router)
 app.include_router(sync_router)
 app.include_router(prs_router)
 app.include_router(progress_router)
+app.include_router(warmup_router)
 
 
 @app.get("/api/health")
