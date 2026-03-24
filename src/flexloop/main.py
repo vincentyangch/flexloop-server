@@ -9,6 +9,7 @@ from flexloop.routers.data import router as data_router
 from flexloop.routers.exercises import router as exercises_router
 from flexloop.routers.measurements import router as measurements_router
 from flexloop.routers.profiles import router as profiles_router
+from flexloop.routers.progress import router as progress_router
 from flexloop.routers.prs import router as prs_router
 from flexloop.routers.sync import router as sync_router
 from flexloop.routers.templates import router as templates_router
@@ -38,6 +39,7 @@ app.include_router(data_router)
 app.include_router(backup_router)
 app.include_router(sync_router)
 app.include_router(prs_router)
+app.include_router(progress_router)
 
 
 @app.get("/api/health")
