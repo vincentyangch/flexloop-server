@@ -47,5 +47,7 @@ class AIUsage(Base):
     month: Mapped[str] = mapped_column(String(7), nullable=False)
     total_input_tokens: Mapped[int] = mapped_column(Integer, default=0)
     total_output_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    total_cache_read_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    total_cache_creation_tokens: Mapped[int] = mapped_column(Integer, default=0)
     estimated_cost: Mapped[float] = mapped_column(Float, default=0.0)
     call_count: Mapped[int] = mapped_column(Integer, default=0)

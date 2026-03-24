@@ -43,6 +43,33 @@ def get_ai_coach() -> AICoach:
     return AICoach(adapter=adapter, prompt_manager=prompt_manager)
 
 
+async def update_usage(user_id: int, llm_response: "LLMResponse", db: AsyncSession):
+    """Track token usage and cache stats."""
+    from flexloop.ai.base import LLMResponse as LR  # noqa
+    month_key = date.today().strftime("%Y-%m")
+    result = await db.execute(
+        select(AIUsage).where(AIUsage.user_id == user_id, AIUsage.month == month_key)
+    )
+    usage = result.scalar_one_or_none()
+    if usage:
+        usage.total_input_tokens += llm_response.input_tokens
+        usage.total_output_tokens += llm_response.output_tokens
+        usage.total_cache_read_tokens += llm_response.cache_read_tokens
+        usage.total_cache_creation_tokens += llm_response.cache_creation_tokens
+        usage.call_count += 1
+    else:
+        usage = AIUsage(
+            user_id=user_id,
+            month=month_key,
+            total_input_tokens=llm_response.input_tokens,
+            total_output_tokens=llm_response.output_tokens,
+            total_cache_read_tokens=llm_response.cache_read_tokens,
+            total_cache_creation_tokens=llm_response.cache_creation_tokens,
+            call_count=1,
+        )
+        db.add(usage)
+
+
 def format_user_profile(user: User) -> str:
     return (
         f"Name: {user.name}\n"
@@ -163,25 +190,7 @@ async def generate_plan(
     )
     session.add(review)
 
-    # Update usage tracking
-    month_key = today.strftime("%Y-%m")
-    usage_result = await session.execute(
-        select(AIUsage).where(AIUsage.user_id == user.id, AIUsage.month == month_key)
-    )
-    usage = usage_result.scalar_one_or_none()
-    if usage:
-        usage.total_input_tokens += llm_response.input_tokens
-        usage.total_output_tokens += llm_response.output_tokens
-        usage.call_count += 1
-    else:
-        usage = AIUsage(
-            user_id=user.id,
-            month=month_key,
-            total_input_tokens=llm_response.input_tokens,
-            total_output_tokens=llm_response.output_tokens,
-            call_count=1,
-        )
-        session.add(usage)
+    await update_usage(user.id, llm_response, session)
 
     await session.commit()
 
@@ -296,24 +305,7 @@ async def ai_chat(
     )
     session.add_all([user_msg, assistant_msg])
 
-    # Update usage
-    month_key = date.today().strftime("%Y-%m")
-    usage_result = await session.execute(
-        select(AIUsage).where(AIUsage.user_id == data.user_id, AIUsage.month == month_key)
-    )
-    usage = usage_result.scalar_one_or_none()
-    if usage:
-        usage.total_input_tokens += llm_response.input_tokens
-        usage.total_output_tokens += llm_response.output_tokens
-        usage.call_count += 1
-    else:
-        usage = AIUsage(
-            user_id=data.user_id, month=month_key,
-            total_input_tokens=llm_response.input_tokens,
-            total_output_tokens=llm_response.output_tokens,
-            call_count=1,
-        )
-        session.add(usage)
+    await update_usage(data.user_id, llm_response, session)
 
     await session.commit()
 

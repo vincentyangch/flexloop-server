@@ -19,10 +19,17 @@ class OpenAIAdapter(LLMAdapter):
         """Parse response handling both Chat Completions and Responses API formats."""
         # Standard Chat Completions format
         if hasattr(response, "choices") and response.choices:
+            cache_read = 0
+            if response.usage:
+                # OpenAI reports cached tokens in prompt_tokens_details
+                details = getattr(response.usage, "prompt_tokens_details", None)
+                if details:
+                    cache_read = getattr(details, "cached_tokens", 0) or 0
             return LLMResponse(
                 content=response.choices[0].message.content or "",
                 input_tokens=response.usage.prompt_tokens if response.usage else 0,
                 output_tokens=response.usage.completion_tokens if response.usage else 0,
+                cache_read_tokens=cache_read,
             )
 
         # Responses API format (response.output)
@@ -42,11 +49,21 @@ class OpenAIAdapter(LLMAdapter):
             usage = getattr(response, "usage", None)
             input_tokens = 0
             output_tokens = 0
+            cache_read = 0
             if usage:
                 input_tokens = getattr(usage, "input_tokens", 0) or getattr(usage, "prompt_tokens", 0) or 0
                 output_tokens = getattr(usage, "output_tokens", 0) or getattr(usage, "completion_tokens", 0) or 0
+                # Check for cached tokens in various formats
+                cache_read = getattr(usage, "input_tokens_details", {})
+                if isinstance(cache_read, dict):
+                    cache_read = cache_read.get("cached_tokens", 0) or 0
+                elif hasattr(cache_read, "cached_tokens"):
+                    cache_read = getattr(cache_read, "cached_tokens", 0) or 0
+                else:
+                    cache_read = 0
 
-            return LLMResponse(content=content, input_tokens=input_tokens, output_tokens=output_tokens)
+            return LLMResponse(content=content, input_tokens=input_tokens,
+                               output_tokens=output_tokens, cache_read_tokens=cache_read)
 
         # Raw string response (some providers return plain text)
         if isinstance(response, str):

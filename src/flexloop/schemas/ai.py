@@ -44,6 +44,8 @@ class AIUsageResponse(BaseModel):
     month: str
     total_input_tokens: int
     total_output_tokens: int
+    total_cache_read_tokens: int = 0
+    total_cache_creation_tokens: int = 0
     estimated_cost: float
     call_count: int
 
