@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from flexloop.db.base import Base
 from flexloop.db.engine import get_session
 from flexloop.main import app
+import flexloop.models  # noqa: F401 — ensure models registered with Base
 
 TEST_DATABASE_URL = "sqlite+aiosqlite://"
 
