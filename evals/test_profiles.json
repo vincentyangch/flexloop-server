@@ -1,0 +1,99 @@
+[
+  {
+    "id": "beginner_female_bodyweight",
+    "name": "Sarah",
+    "gender": "female",
+    "age": 24,
+    "height_cm": 163,
+    "weight_kg": 58,
+    "experience_level": "beginner",
+    "goals": "general fitness",
+    "available_equipment": ["bodyweight_only", "dumbbells"],
+    "days_per_week": 3,
+    "criteria": {
+      "plan_type": "Should recommend full body split for 3 days",
+      "no_barbell": "Should NOT include barbell exercises",
+      "no_machine": "Should NOT include machine exercises",
+      "max_volume_per_muscle": 12,
+      "min_exercises_per_day": 4,
+      "max_exercises_per_day": 7,
+      "should_include_bodyweight": true
+    }
+  },
+  {
+    "id": "intermediate_male_ppl",
+    "name": "Mike",
+    "gender": "male",
+    "age": 28,
+    "height_cm": 180,
+    "weight_kg": 82,
+    "experience_level": "intermediate",
+    "goals": "hypertrophy",
+    "available_equipment": ["barbell", "dumbbells", "cables", "machines"],
+    "days_per_week": 6,
+    "criteria": {
+      "plan_type": "Should recommend PPL split for 6 days",
+      "min_exercises_per_day": 4,
+      "max_exercises_per_day": 8,
+      "should_include_compound": true,
+      "max_volume_per_muscle": 20
+    }
+  },
+  {
+    "id": "beginner_male_3day",
+    "name": "Tom",
+    "gender": "male",
+    "age": 35,
+    "height_cm": 175,
+    "weight_kg": 90,
+    "experience_level": "beginner",
+    "goals": "weight loss",
+    "available_equipment": ["barbell", "dumbbells", "machines"],
+    "days_per_week": 3,
+    "criteria": {
+      "plan_type": "Should recommend full body for 3 days",
+      "min_exercises_per_day": 5,
+      "max_exercises_per_day": 8,
+      "should_include_compound": true,
+      "max_volume_per_muscle": 12
+    }
+  },
+  {
+    "id": "advanced_female_upper_lower",
+    "name": "Lisa",
+    "gender": "female",
+    "age": 30,
+    "height_cm": 168,
+    "weight_kg": 65,
+    "experience_level": "advanced",
+    "goals": "strength",
+    "available_equipment": ["barbell", "dumbbells", "cables", "machines", "pull_up_bar"],
+    "days_per_week": 4,
+    "criteria": {
+      "plan_type": "Should recommend upper/lower split for 4 days",
+      "min_exercises_per_day": 5,
+      "max_exercises_per_day": 8,
+      "should_include_compound": true,
+      "max_volume_per_muscle": 22
+    }
+  },
+  {
+    "id": "intermediate_male_home",
+    "name": "Alex",
+    "gender": "male",
+    "age": 40,
+    "height_cm": 183,
+    "weight_kg": 85,
+    "experience_level": "intermediate",
+    "goals": "general fitness",
+    "available_equipment": ["dumbbells", "pull_up_bar", "bands"],
+    "days_per_week": 4,
+    "criteria": {
+      "plan_type": "Should recommend upper/lower or full body for 4 days",
+      "no_barbell": "Should NOT include barbell exercises",
+      "no_machine": "Should NOT include machine exercises",
+      "min_exercises_per_day": 4,
+      "max_exercises_per_day": 7
+    }
+  }
+]
