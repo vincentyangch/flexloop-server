@@ -1,0 +1,260 @@
+{
+  "Barbell Bench Press": {
+    "description": "A compound chest exercise performed lying on a flat bench, pressing a barbell from chest level to full arm extension.",
+    "primary_muscles": ["chest"],
+    "secondary_muscles": ["triceps", "shoulders"],
+    "instructions": [
+      "Lie flat on the bench with feet firmly on the floor",
+      "Grip the bar slightly wider than shoulder width",
+      "Unrack the bar and hold it above your chest with arms extended",
+      "Lower the bar slowly to your mid-chest",
+      "Press the bar back up to the starting position"
+    ],
+    "form_cues": [
+      "Keep shoulder blades retracted and squeezed together",
+      "Maintain a slight arch in your lower back",
+      "Drive your feet into the floor for stability",
+      "Control the descent — don't bounce off your chest"
+    ],
+    "common_mistakes": [
+      "Flaring elbows too wide (keep ~45-75 degree angle)",
+      "Lifting hips off the bench",
+      "Not fully locking out at the top",
+      "Uneven grip width"
+    ],
+    "breathing": "Inhale on the way down, exhale as you press up",
+    "demo_url": null
+  },
+  "Barbell Back Squat": {
+    "description": "The king of lower body exercises. A compound movement targeting quads, glutes, and core with a barbell across the upper back.",
+    "primary_muscles": ["quads", "glutes"],
+    "secondary_muscles": ["hamstrings", "core", "calves"],
+    "instructions": [
+      "Position the bar on your upper traps (high bar) or rear delts (low bar)",
+      "Step back and set feet shoulder-width apart, toes slightly out",
+      "Brace your core and take a deep breath",
+      "Break at the hips and knees simultaneously",
+      "Descend until thighs are at least parallel to the floor",
+      "Drive through your whole foot to stand back up"
+    ],
+    "form_cues": [
+      "Keep your chest up and eyes forward",
+      "Push knees out over toes — don't let them cave in",
+      "Keep the bar path over midfoot",
+      "Maintain a neutral spine throughout"
+    ],
+    "common_mistakes": [
+      "Knees caving inward (valgus collapse)",
+      "Rounding the lower back at the bottom",
+      "Rising on toes / heels coming off the floor",
+      "Not hitting depth (aim for parallel or below)"
+    ],
+    "breathing": "Big breath in and brace before descent, exhale past the sticking point",
+    "demo_url": null
+  },
+  "Conventional Deadlift": {
+    "description": "A full-body compound lift pulling a barbell from the floor to hip height. Builds total body strength.",
+    "primary_muscles": ["back", "hamstrings", "glutes"],
+    "secondary_muscles": ["quads", "core", "forearms", "traps"],
+    "instructions": [
+      "Stand with feet hip-width apart, bar over midfoot",
+      "Hinge at hips, grip the bar just outside your knees",
+      "Drop hips, lift chest, and pull slack out of the bar",
+      "Drive through the floor, keeping the bar close to your body",
+      "Lock out by squeezing glutes at the top",
+      "Reverse the movement to lower the bar"
+    ],
+    "form_cues": [
+      "Keep the bar close to your shins and thighs",
+      "Think of pushing the floor away, not pulling the bar up",
+      "Engage your lats — protect your lower back",
+      "Lock out with your hips, not by leaning back"
+    ],
+    "common_mistakes": [
+      "Rounding the lower back",
+      "Bar drifting away from the body",
+      "Jerking the bar off the floor (pull the slack out first)",
+      "Hyperextending at the top"
+    ],
+    "breathing": "Big breath and brace before the pull, exhale at lockout",
+    "demo_url": null
+  },
+  "Overhead Press": {
+    "description": "A standing compound shoulder exercise pressing a barbell from shoulder level overhead.",
+    "primary_muscles": ["shoulders"],
+    "secondary_muscles": ["triceps", "core", "traps"],
+    "instructions": [
+      "Start with the bar resting on your front delts, hands just outside shoulders",
+      "Brace your core and squeeze your glutes",
+      "Press the bar straight up, moving your head back slightly to clear the bar path",
+      "Once the bar passes your forehead, push your head through",
+      "Lock out with the bar directly over midfoot"
+    ],
+    "form_cues": [
+      "Keep your ribs down — don't flare them",
+      "Squeeze glutes hard to prevent lower back arch",
+      "The bar should travel in a straight vertical line",
+      "Full lockout at the top — biceps by ears"
+    ],
+    "common_mistakes": [
+      "Excessive lower back arch (leaning back too far)",
+      "Pressing the bar forward instead of straight up",
+      "Not locking out fully overhead",
+      "Using leg drive (that makes it a push press)"
+    ],
+    "breathing": "Breath in at the bottom, brace, exhale as you press",
+    "demo_url": null
+  },
+  "Pull-Up": {
+    "description": "A bodyweight compound back exercise hanging from a bar and pulling yourself up until chin clears the bar.",
+    "primary_muscles": ["back"],
+    "secondary_muscles": ["biceps", "forearms", "core"],
+    "instructions": [
+      "Hang from the bar with hands slightly wider than shoulder width, palms facing away",
+      "Retract your shoulder blades and engage your lats",
+      "Pull yourself up until your chin is above the bar",
+      "Lower yourself under control back to a full hang"
+    ],
+    "form_cues": [
+      "Initiate the pull by driving your elbows down and back",
+      "Keep your core tight — no swinging",
+      "Full range of motion: dead hang to chin over bar",
+      "Control the descent — don't just drop"
+    ],
+    "common_mistakes": [
+      "Using momentum / kipping",
+      "Not going to full extension at the bottom",
+      "Chin not clearing the bar",
+      "Shrugging shoulders up instead of pulling with lats"
+    ],
+    "breathing": "Exhale as you pull up, inhale on the way down",
+    "demo_url": null
+  },
+  "Romanian Deadlift": {
+    "description": "A hip hinge movement targeting the hamstrings and glutes, performed with a slight knee bend.",
+    "primary_muscles": ["hamstrings"],
+    "secondary_muscles": ["glutes", "back"],
+    "instructions": [
+      "Hold the bar at hip height with an overhand grip",
+      "With a slight bend in your knees, push your hips back",
+      "Lower the bar along your thighs and shins",
+      "Go as low as your hamstring flexibility allows",
+      "Drive hips forward to return to standing"
+    ],
+    "form_cues": [
+      "Keep the bar close to your body at all times",
+      "Feel the stretch in your hamstrings",
+      "Maintain a neutral spine — no rounding",
+      "Knees stay in the same slightly bent position throughout"
+    ],
+    "common_mistakes": [
+      "Bending the knees too much (this becomes a conventional deadlift)",
+      "Rounding the back",
+      "Letting the bar drift away from the body",
+      "Not going deep enough to feel the hamstring stretch"
+    ],
+    "breathing": "Inhale on the way down, exhale driving hips forward",
+    "demo_url": null
+  },
+  "Hip Thrust": {
+    "description": "The primary glute builder. Upper back on a bench, driving hips up with a barbell across the hips.",
+    "primary_muscles": ["glutes"],
+    "secondary_muscles": ["hamstrings", "core"],
+    "instructions": [
+      "Sit on the floor with upper back against a bench, barbell over hips",
+      "Plant feet flat on the floor, hip-width apart",
+      "Drive through your heels to lift hips until fully extended",
+      "Squeeze glutes hard at the top",
+      "Lower hips back down under control"
+    ],
+    "form_cues": [
+      "Tuck your chin slightly — look forward, not up",
+      "Drive through your heels, not your toes",
+      "Full hip extension at the top — squeeze for a count",
+      "Feet positioned so shins are vertical at the top"
+    ],
+    "common_mistakes": [
+      "Hyperextending the lower back instead of squeezing glutes",
+      "Feet too far forward or too close",
+      "Not reaching full hip extension",
+      "Rushing the movement"
+    ],
+    "breathing": "Exhale and squeeze at the top, inhale on the way down",
+    "demo_url": null
+  },
+  "Lateral Raise": {
+    "description": "An isolation exercise for the side deltoids, performed by raising dumbbells out to the sides.",
+    "primary_muscles": ["shoulders"],
+    "secondary_muscles": ["traps"],
+    "instructions": [
+      "Stand with dumbbells at your sides, slight bend in elbows",
+      "Raise both arms out to the sides until parallel with the floor",
+      "Pause briefly at the top",
+      "Lower slowly back to the starting position"
+    ],
+    "form_cues": [
+      "Lead with your elbows, not your hands",
+      "Slight forward lean helps target the side delt",
+      "Think of pouring water out of a pitcher at the top",
+      "Don't go heavier than you can control"
+    ],
+    "common_mistakes": [
+      "Using too much weight and swinging",
+      "Raising above shoulder height (engages traps too much)",
+      "Straight arms (keep a slight elbow bend)",
+      "Leading with the hands instead of elbows"
+    ],
+    "breathing": "Exhale as you raise, inhale as you lower",
+    "demo_url": null
+  },
+  "Barbell Curl": {
+    "description": "A classic bicep isolation exercise curling a barbell from hip level to shoulder height.",
+    "primary_muscles": ["biceps"],
+    "secondary_muscles": ["forearms"],
+    "instructions": [
+      "Stand with feet shoulder-width apart, grip the bar underhand at shoulder width",
+      "Keep your upper arms stationary at your sides",
+      "Curl the bar up by bending your elbows",
+      "Squeeze at the top, then lower under control"
+    ],
+    "form_cues": [
+      "Keep your elbows pinned to your sides",
+      "Don't swing your body — strict form",
+      "Control the negative (lowering phase)",
+      "Full range of motion: full extension to full contraction"
+    ],
+    "common_mistakes": [
+      "Swinging the body for momentum",
+      "Elbows drifting forward",
+      "Not going to full extension at the bottom",
+      "Using too much weight at the expense of form"
+    ],
+    "breathing": "Exhale on the curl up, inhale on the way down",
+    "demo_url": null
+  },
+  "Plank": {
+    "description": "An isometric core exercise holding a push-up position on forearms, building core stability and endurance.",
+    "primary_muscles": ["core"],
+    "secondary_muscles": ["shoulders", "glutes"],
+    "instructions": [
+      "Place forearms on the floor, elbows under shoulders",
+      "Extend legs back, toes on the floor",
+      "Lift your body to form a straight line from head to heels",
+      "Hold the position, engaging your entire core"
+    ],
+    "form_cues": [
+      "Don't let your hips sag or pike up",
+      "Squeeze your glutes and quads",
+      "Keep your neck neutral — look at the floor",
+      "Breathe steadily — don't hold your breath"
+    ],
+    "common_mistakes": [
+      "Hips sagging toward the floor",
+      "Hips too high (piking up)",
+      "Holding breath",
+      "Looking forward instead of down"
+    ],
+    "breathing": "Breathe normally throughout — steady in and out",
+    "demo_url": null
+  }
+}
