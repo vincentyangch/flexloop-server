@@ -3,6 +3,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from flexloop.db.engine import init_db
+from flexloop.routers.exercises import router as exercises_router
+from flexloop.routers.measurements import router as measurements_router
+from flexloop.routers.profiles import router as profiles_router
+from flexloop.routers.templates import router as templates_router
+from flexloop.routers.workouts import router as workouts_router
 
 
 @asynccontextmanager
@@ -17,6 +22,12 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+app.include_router(profiles_router)
+app.include_router(exercises_router)
+app.include_router(workouts_router)
+app.include_router(templates_router)
+app.include_router(measurements_router)
 
 
 @app.get("/api/health")
