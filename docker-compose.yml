@@ -1,0 +1,19 @@
+version: "3.8"
+
+services:
+  flexloop:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - flexloop-data:/app/data
+      - flexloop-backups:/app/backups
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=sqlite+aiosqlite:///./data/flexloop.db
+    restart: unless-stopped
+
+volumes:
+  flexloop-data:
+  flexloop-backups:
