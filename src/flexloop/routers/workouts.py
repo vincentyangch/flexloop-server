@@ -1,12 +1,14 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from flexloop.db.engine import get_session
 from flexloop.models.workout import SessionFeedback, WorkoutSession, WorkoutSet
+from flexloop.services.pr_detection import check_prs
 from flexloop.schemas.workout import (
     SessionFeedbackCreate,
     SessionFeedbackResponse,
@@ -117,3 +119,36 @@ async def submit_feedback(
     await session.commit()
     await session.refresh(feedback)
     return feedback
+
+
+class PRCheckRequest(BaseModel):
+    exercise_id: int
+    weight: float | None = None
+    reps: int | None = None
+
+
+@router.post("/api/workouts/{workout_id}/check-pr")
+async def check_set_pr(
+    workout_id: int,
+    data: PRCheckRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    """Check if a set represents a new personal record. Call after logging each set."""
+    result = await session.execute(
+        select(WorkoutSession).where(WorkoutSession.id == workout_id)
+    )
+    workout = result.scalar_one_or_none()
+    if not workout:
+        raise HTTPException(status_code=404, detail="Workout session not found")
+
+    new_prs = await check_prs(
+        user_id=workout.user_id,
+        exercise_id=data.exercise_id,
+        weight=data.weight,
+        reps=data.reps,
+        session_id=workout_id,
+        db=session,
+    )
+
+    await session.commit()
+    return {"new_prs": new_prs}
