@@ -18,3 +18,27 @@ async def init_db():
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    # Run Alembic migrations to apply any schema updates
+    # (handles columns added after initial create_all)
+    _run_migrations()
+
+
+def _run_migrations():
+    """Run Alembic migrations using a synchronous connection to avoid async conflicts."""
+    import sqlite3
+
+    from alembic import command
+    from alembic.config import Config
+
+    # Stamp current version if alembic_version table doesn't exist yet
+    # (handles DBs created before migrations were introduced)
+    db_path = settings.database_url.replace("sqlite+aiosqlite:///", "")
+    conn = sqlite3.connect(db_path)
+    tables = [r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
+    conn.close()
+
+    alembic_cfg = Config("alembic.ini")
+    # Override the URL to use synchronous sqlite driver
+    alembic_cfg.set_main_option("sqlalchemy.url", f"sqlite:///{db_path}")
+    command.upgrade(alembic_cfg, "head")

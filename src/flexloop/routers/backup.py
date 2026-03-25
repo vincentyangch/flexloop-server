@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException
 
+from flexloop.db.engine import _run_migrations
 from flexloop.services.backup import BackupService
 
 router = APIRouter(prefix="/api", tags=["backup"])
@@ -40,4 +41,6 @@ async def restore_backup(backup_filename: str):
     success = service.restore(backup_filename)
     if not success:
         raise HTTPException(status_code=404, detail="Backup not found")
+    # Restored DB may be missing newer schema changes
+    _run_migrations()
     return {"status": "restored", "from": backup_filename}
