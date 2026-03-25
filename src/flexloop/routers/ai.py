@@ -14,6 +14,7 @@ from flexloop.config import settings
 from flexloop.db.engine import get_session
 from flexloop.models.ai import AIChatMessage, AIReview, AIUsage
 from flexloop.models.exercise import Exercise
+from flexloop.models.personal_record import PersonalRecord
 from flexloop.models.plan import ExerciseGroup, Plan, PlanDay, PlanExercise
 from flexloop.models.user import User
 from flexloop.models.workout import WorkoutSession, WorkoutSet
@@ -265,22 +266,89 @@ async def ai_chat(
     )
     history = list(reversed(chat_result.scalars().all()))
 
-    # Load recent workouts for context
+    # Load recent workouts with sets for context
     workouts_result = await session.execute(
         select(WorkoutSession)
         .where(WorkoutSession.user_id == data.user_id)
         .options(selectinload(WorkoutSession.sets))
         .order_by(WorkoutSession.started_at.desc())
-        .limit(5)
+        .limit(10)
     )
     recent_workouts = workouts_result.scalars().all()
 
+    # Load exercise names for readable context
+    exercise_ids = {s.exercise_id for w in recent_workouts for s in w.sets}
+    exercise_names: dict[int, str] = {}
+    if exercise_ids:
+        ex_result = await session.execute(
+            select(Exercise).where(Exercise.id.in_(exercise_ids))
+        )
+        exercise_names = {e.id: e.name for e in ex_result.scalars().all()}
+
+    # Load active plan
+    plan_result = await session.execute(
+        select(Plan)
+        .where(Plan.user_id == data.user_id)
+        .options(selectinload(Plan.days).selectinload(PlanDay.exercise_groups).selectinload(ExerciseGroup.exercises))
+        .order_by(Plan.created_at.desc())
+        .limit(1)
+    )
+    active_plan = plan_result.scalars().first()
+
+    # Load PRs
+    pr_result = await session.execute(
+        select(PersonalRecord)
+        .where(PersonalRecord.user_id == data.user_id, PersonalRecord.pr_type == "estimated_1rm")
+    )
+    prs = pr_result.scalars().all()
+
     # Build context
     profile_text = format_user_profile(user)
-    history_text = "No recent workouts." if not recent_workouts else "\n".join(
-        f"- {w.started_at.strftime('%Y-%m-%d')}: {len(w.sets)} sets ({w.source})"
-        for w in recent_workouts
-    )
+
+    # Detailed workout history
+    if not recent_workouts:
+        history_text = "No recent workouts."
+    else:
+        workout_lines = []
+        for w in recent_workouts:
+            sets_by_exercise: dict[int, list] = {}
+            for s in w.sets:
+                sets_by_exercise.setdefault(s.exercise_id, []).append(s)
+            exercise_details = []
+            for ex_id, sets in sets_by_exercise.items():
+                name = exercise_names.get(ex_id, f"Exercise #{ex_id}")
+                set_strs = [
+                    f"{s.weight_kg}kg x {s.reps}" + (f" RPE {s.rpe}" if s.rpe else "")
+                    for s in sets if s.weight_kg and s.reps
+                ]
+                if set_strs:
+                    exercise_details.append(f"  {name}: {', '.join(set_strs)}")
+            date_str = w.started_at.strftime('%Y-%m-%d')
+            workout_lines.append(f"- {date_str} ({w.source}):")
+            workout_lines.extend(exercise_details or ["  (no sets logged)"])
+        history_text = "\n".join(workout_lines)
+
+    # Plan context
+    if active_plan:
+        plan_lines = [f"Active plan: {active_plan.name} ({active_plan.split_type})"]
+        for day in (active_plan.days or []):
+            exercises = []
+            for group in (day.exercise_groups or []):
+                for ex in (group.exercises or []):
+                    name = exercise_names.get(ex.exercise_id, f"Exercise #{ex.exercise_id}")
+                    exercises.append(f"{name} {ex.sets}x{ex.reps}")
+            plan_lines.append(f"  Day {day.day_number} ({day.label}): {', '.join(exercises)}")
+        plan_text = "\n".join(plan_lines)
+    else:
+        plan_text = "No active plan."
+
+    # PR context
+    if prs:
+        pr_lines = []
+        for pr in prs:
+            name = exercise_names.get(pr.exercise_id, f"Exercise #{pr.exercise_id}")
+            pr_lines.append(f"- {name}: est. 1RM {pr.value:.1f}kg")
+        history_text += "\n\nPersonal Records:\n" + "\n".join(pr_lines)
 
     messages = [{"role": m.role, "content": m.content} for m in history]
     messages.append({"role": "user", "content": data.message})
@@ -290,7 +358,7 @@ async def ai_chat(
     llm_response = await coach.chat(
         messages=messages,
         user_profile=profile_text,
-        current_plan="No active plan loaded.",
+        current_plan=plan_text,
         training_history=history_text,
     )
 
