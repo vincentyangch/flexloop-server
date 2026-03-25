@@ -24,6 +24,7 @@ async def get_warmup_sets(
     sets = generate_warmup_sets(
         working_weight=working_weight,
         exercise_category=exercise.category,
+        equipment=exercise.equipment,
     )
 
     return {
