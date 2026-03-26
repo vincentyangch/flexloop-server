@@ -5,7 +5,7 @@ def test_validate_valid_plan_output():
     output = {
         "plan_name": "PPL Block 1",
         "split_type": "ppl",
-        "block_weeks": 6,
+        "cycle_length": 3,
         "days": [
             {
                 "day_number": 1,
@@ -32,21 +32,21 @@ def test_validate_valid_plan_output():
 
 
 def test_validate_invalid_plan_output_missing_days():
-    output = {"plan_name": "Test", "split_type": "ppl", "block_weeks": 6}
+    output = {"plan_name": "Test", "split_type": "ppl", "cycle_length": 3}
     result = validate_plan_output(output)
     assert not result.is_valid
     assert len(result.errors) > 0
 
 
 def test_validate_invalid_plan_output_empty_days():
-    output = {"plan_name": "Test", "split_type": "ppl", "block_weeks": 6, "days": []}
+    output = {"plan_name": "Test", "split_type": "ppl", "cycle_length": 3, "days": []}
     result = validate_plan_output(output)
     assert not result.is_valid
 
 
 def test_validate_invalid_plan_output_missing_exercise_groups():
     output = {
-        "plan_name": "Test", "split_type": "ppl", "block_weeks": 6,
+        "plan_name": "Test", "split_type": "ppl", "cycle_length": 3,
         "days": [{"day_number": 1, "label": "Push"}],
     }
     result = validate_plan_output(output)

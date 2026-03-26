@@ -11,7 +11,7 @@ class ValidationResult:
 def validate_plan_output(data: dict) -> ValidationResult:
     errors = []
 
-    required_fields = ["plan_name", "split_type", "block_weeks", "days"]
+    required_fields = ["plan_name", "split_type", "cycle_length", "days"]
     for f in required_fields:
         if f not in data:
             errors.append(f"Missing required field: {f}")

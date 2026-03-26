@@ -13,7 +13,7 @@ def test_score_valid_plan():
     plan = {
         "plan_name": "Test Plan",
         "split_type": "full_body",
-        "block_weeks": 6,
+        "cycle_length": 3,
         "days": [
             {
                 "day_number": 1, "label": "Day A", "focus": "full body",
