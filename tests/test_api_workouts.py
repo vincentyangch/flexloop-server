@@ -116,3 +116,52 @@ async def test_submit_session_feedback(client, seed_user_exercise):
     })
     assert response.status_code == 201
     assert response.json()["sleep_quality"] == 4
+
+
+@pytest.mark.asyncio
+async def test_update_workout_set(client, seed_user_exercise):
+    user, exercise = seed_user_exercise
+
+    create_resp = await client.post("/api/workouts", json={
+        "user_id": user.id, "source": "plan",
+    })
+    session_id = create_resp.json()["id"]
+
+    # Add a set
+    await client.put(f"/api/workouts/{session_id}", json={
+        "sets": [
+            {"exercise_id": exercise.id, "set_number": 1, "set_type": "working",
+             "weight": 100.0, "reps": 5, "rpe": 7.5},
+        ],
+    })
+
+    # Get the set id
+    workout = await client.get(f"/api/workouts/{session_id}")
+    set_id = workout.json()["sets"][0]["id"]
+
+    # Edit the set
+    resp = await client.put(f"/api/workouts/{session_id}/sets/{set_id}", json={
+        "weight": 105.0,
+        "reps": 4,
+        "rpe": 8.5,
+    })
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["weight"] == 105.0
+    assert data["reps"] == 4
+    assert data["rpe"] == 8.5
+
+
+@pytest.mark.asyncio
+async def test_update_workout_set_not_found(client, seed_user_exercise):
+    user, _ = seed_user_exercise
+
+    create_resp = await client.post("/api/workouts", json={
+        "user_id": user.id, "source": "plan",
+    })
+    session_id = create_resp.json()["id"]
+
+    resp = await client.put(f"/api/workouts/{session_id}/sets/999", json={
+        "weight": 100.0,
+    })
+    assert resp.status_code == 404

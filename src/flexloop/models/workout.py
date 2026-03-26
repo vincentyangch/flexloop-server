@@ -17,7 +17,7 @@ class WorkoutSession(Base):
         Integer, ForeignKey("plan_days.id"), nullable=True
     )
     template_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    source: Mapped[str] = mapped_column(String(20), nullable=False, default="ad_hoc")
+    source: Mapped[str] = mapped_column(String(20), nullable=False, default="plan")
     started_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)

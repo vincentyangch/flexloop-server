@@ -1,7 +1,7 @@
 from datetime import date, datetime
 
 from sqlalchemy import (
-    Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text, func,
+    Boolean, Date, DateTime, Float, ForeignKey, Integer, JSON, String, Text, func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -15,11 +15,15 @@ class Plan(Base):
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     split_type: Mapped[str] = mapped_column(String(50), nullable=False)
-    block_start: Mapped[date] = mapped_column(Date, nullable=False)
-    block_end: Mapped[date] = mapped_column(Date, nullable=False)
+    cycle_length: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
+    block_start: Mapped[date | None] = mapped_column(Date, nullable=True)
+    block_end: Mapped[date | None] = mapped_column(Date, nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
     ai_generated: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now(), nullable=True
+    )
 
     days: Mapped[list["PlanDay"]] = relationship(back_populates="plan", cascade="all, delete-orphan")
 
@@ -69,6 +73,7 @@ class PlanExercise(Base):
     reps: Mapped[int] = mapped_column(Integer, nullable=False)
     weight: Mapped[float | None] = mapped_column(Float, nullable=True)
     rpe_target: Mapped[float | None] = mapped_column(Float, nullable=True)
+    sets_json: Mapped[list | None] = mapped_column(JSON, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     plan_day: Mapped["PlanDay"] = relationship(back_populates="exercises")

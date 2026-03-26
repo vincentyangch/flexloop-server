@@ -3,7 +3,7 @@ import logging
 from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -13,6 +13,7 @@ from flexloop.ai.prompts import PromptManager
 from flexloop.config import settings
 from flexloop.db.engine import get_session
 from flexloop.models.ai import AIChatMessage, AIReview, AIUsage
+from flexloop.models.cycle_tracker import CycleTracker
 from flexloop.models.exercise import Exercise
 from flexloop.models.personal_record import PersonalRecord
 from flexloop.models.plan import ExerciseGroup, Plan, PlanDay, PlanExercise
@@ -113,15 +114,18 @@ async def generate_plan(
             "output_tokens": llm_response.output_tokens,
         }
 
+    # Deactivate existing plans for this user
+    await session.execute(
+        update(Plan).where(Plan.user_id == user.id).values(status="inactive")
+    )
+
     # Save plan to database
-    block_weeks = plan_data.get("block_weeks", 6)
-    today = date.today()
+    cycle_length = plan_data.get("cycle_length", len(plan_data.get("days", [])) or 3)
     plan = Plan(
         user_id=user.id,
         name=plan_data.get("plan_name", "AI Generated Plan"),
         split_type=plan_data.get("split_type", "custom"),
-        block_start=today,
-        block_end=today + timedelta(weeks=block_weeks),
+        cycle_length=cycle_length,
         status="active",
         ai_generated=True,
     )
@@ -172,6 +176,7 @@ async def generate_plan(
                     reps=ex_data.get("reps", 10),
                     weight=ex_data.get("weight"),
                     rpe_target=ex_data.get("rpe_target"),
+                    sets_json=ex_data.get("sets_json"),
                     notes=ex_data.get("notes"),
                 )
                 session.add(plan_exercise)
@@ -193,6 +198,19 @@ async def generate_plan(
 
     await update_usage(user.id, llm_response, session)
 
+    # Create or update cycle tracker
+    tracker_result = await session.execute(
+        select(CycleTracker).where(CycleTracker.user_id == user.id)
+    )
+    tracker = tracker_result.scalar_one_or_none()
+    if tracker:
+        tracker.plan_id = plan.id
+        tracker.next_day_number = 1
+        tracker.last_completed_at = None
+    else:
+        tracker = CycleTracker(user_id=user.id, plan_id=plan.id, next_day_number=1)
+        session.add(tracker)
+
     await session.commit()
 
     # Re-fetch plan with relationships
@@ -212,8 +230,7 @@ async def generate_plan(
         "plan_id": saved_plan.id,
         "plan_name": saved_plan.name,
         "split_type": saved_plan.split_type,
-        "block_start": saved_plan.block_start.isoformat(),
-        "block_end": saved_plan.block_end.isoformat(),
+        "cycle_length": saved_plan.cycle_length,
         "days": [
             {
                 "day_number": d.day_number,
@@ -230,6 +247,7 @@ async def generate_plan(
                                 "reps": e.reps,
                                 "weight": e.weight,
                                 "rpe_target": e.rpe_target,
+                                "sets_json": e.sets_json,
                                 "notes": e.notes,
                             }
                             for e in sorted(g.exercises, key=lambda x: x.order)

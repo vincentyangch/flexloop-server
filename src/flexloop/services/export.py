@@ -3,7 +3,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from flexloop.models.measurement import Measurement
-from flexloop.models.template import Template
 from flexloop.models.user import User
 from flexloop.models.workout import WorkoutSession
 
@@ -22,11 +21,6 @@ async def export_user_data(user_id: int, session: AsyncSession) -> dict:
         .order_by(WorkoutSession.started_at)
     )
     workouts = workouts_result.scalars().all()
-
-    templates_result = await session.execute(
-        select(Template).where(Template.user_id == user_id)
-    )
-    templates = templates_result.scalars().all()
 
     measurements_result = await session.execute(
         select(Measurement).where(Measurement.user_id == user_id).order_by(Measurement.date)
@@ -57,10 +51,6 @@ async def export_user_data(user_id: int, session: AsyncSession) -> dict:
                 ],
             }
             for w in workouts
-        ],
-        "templates": [
-            {"name": t.name, "exercises_json": t.exercises_json}
-            for t in templates
         ],
         "measurements": [
             {

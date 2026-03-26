@@ -51,11 +51,16 @@ class SessionFeedbackResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class WorkoutSetUpdate(BaseModel):
+    weight: float | None = None
+    reps: int | None = None
+    rpe: float | None = None
+
+
 class WorkoutSessionCreate(BaseModel):
     user_id: int
     plan_day_id: int | None = None
-    template_id: int | None = None
-    source: str = "ad_hoc"
+    source: str = "plan"
     notes: str | None = None
 
 
@@ -69,7 +74,6 @@ class WorkoutSessionResponse(BaseModel):
     id: int
     user_id: int
     plan_day_id: int | None = None
-    template_id: int | None = None
     source: str
     started_at: datetime
     completed_at: datetime | None = None

@@ -1,5 +1,6 @@
 from flexloop.models.ai import AIChatMessage, AIReview, AIUsage
 from flexloop.models.backup import Backup
+from flexloop.models.cycle_tracker import CycleTracker
 from flexloop.models.exercise import Exercise
 from flexloop.models.measurement import Measurement
 from flexloop.models.notification import Notification
@@ -12,9 +13,9 @@ from flexloop.models.workout import SessionFeedback, WorkoutSession, WorkoutSet
 
 __all__ = [
     "AIChatMessage", "AIReview", "AIUsage",
-    "Backup", "Exercise", "ExerciseGroup",
+    "Backup", "CycleTracker", "Exercise", "ExerciseGroup",
     "Measurement", "Notification", "PersonalRecord",
     "Plan", "PlanDay", "PlanExercise",
-    "SessionFeedback", "Template", "User",
+    "SessionFeedback", "User",
     "VolumeLandmark", "WorkoutSession", "WorkoutSet",
 ]

@@ -23,8 +23,7 @@ class SyncSetData(BaseModel):
 
 class SyncWorkoutData(BaseModel):
     plan_day_id: int | None = None
-    template_id: int | None = None
-    source: str = "ad_hoc"
+    source: str = "plan"
     started_at: datetime
     completed_at: datetime | None = None
     notes: str | None = None
@@ -51,7 +50,6 @@ async def sync_data(data: SyncRequest, session: AsyncSession = Depends(get_sessi
         workout = WorkoutSession(
             user_id=data.user_id,
             plan_day_id=workout_data.plan_day_id,
-            template_id=workout_data.template_id,
             source=workout_data.source,
             started_at=workout_data.started_at,
             completed_at=workout_data.completed_at,

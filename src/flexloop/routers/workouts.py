@@ -15,6 +15,7 @@ from flexloop.schemas.workout import (
     WorkoutSessionCreate,
     WorkoutSessionResponse,
     WorkoutSessionUpdate,
+    WorkoutSetUpdate,
 )
 
 router = APIRouter(tags=["workouts"])
@@ -27,7 +28,6 @@ async def create_workout(
     workout = WorkoutSession(
         user_id=data.user_id,
         plan_day_id=data.plan_day_id,
-        template_id=data.template_id,
         source=data.source,
         started_at=datetime.now(),
         notes=data.notes,
@@ -119,6 +119,34 @@ async def submit_feedback(
     await session.commit()
     await session.refresh(feedback)
     return feedback
+
+
+@router.put("/api/workouts/{workout_id}/sets/{set_id}", response_model=dict)
+async def update_set(
+    workout_id: int, set_id: int, data: WorkoutSetUpdate,
+    session: AsyncSession = Depends(get_session),
+):
+    result = await session.execute(
+        select(WorkoutSet).where(WorkoutSet.id == set_id, WorkoutSet.session_id == workout_id)
+    )
+    workout_set = result.scalar_one_or_none()
+    if not workout_set:
+        raise HTTPException(status_code=404, detail="Set not found")
+
+    if data.weight is not None:
+        workout_set.weight = data.weight
+    if data.reps is not None:
+        workout_set.reps = data.reps
+    if data.rpe is not None:
+        workout_set.rpe = data.rpe
+
+    await session.commit()
+    return {
+        "id": workout_set.id,
+        "weight": workout_set.weight,
+        "reps": workout_set.reps,
+        "rpe": workout_set.rpe,
+    }
 
 
 class PRCheckRequest(BaseModel):
