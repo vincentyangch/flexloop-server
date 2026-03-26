@@ -336,8 +336,8 @@ async def ai_chat(
             for ex_id, sets in sets_by_exercise.items():
                 name = exercise_names.get(ex_id, f"Exercise #{ex_id}")
                 set_strs = [
-                    f"{s.weight_kg}kg x {s.reps}" + (f" RPE {s.rpe}" if s.rpe else "")
-                    for s in sets if s.weight_kg and s.reps
+                    f"{s.weight}kg x {s.reps}" + (f" RPE {s.rpe}" if s.rpe else "")
+                    for s in sets if s.weight and s.reps
                 ]
                 if set_strs:
                     exercise_details.append(f"  {name}: {', '.join(set_strs)}")

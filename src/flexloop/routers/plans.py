@@ -82,6 +82,19 @@ async def create_plan(data: PlanCreate, session: AsyncSession = Depends(get_sess
                 )
                 session.add(plan_ex)
 
+    # Create or update cycle tracker
+    tracker_result = await session.execute(
+        select(CycleTracker).where(CycleTracker.user_id == data.user_id)
+    )
+    tracker = tracker_result.scalar_one_or_none()
+    if tracker:
+        tracker.plan_id = plan.id
+        tracker.next_day_number = 1
+        tracker.last_completed_at = None
+    else:
+        tracker = CycleTracker(user_id=data.user_id, plan_id=plan.id, next_day_number=1)
+        session.add(tracker)
+
     await session.commit()
 
     result = await session.execute(_plan_query(plan_id=plan.id))
