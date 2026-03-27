@@ -180,3 +180,29 @@ async def check_set_pr(
 
     await session.commit()
     return {"new_prs": new_prs}
+
+
+class PRCheckRequestWithUser(BaseModel):
+    user_id: int
+    exercise_id: int
+    weight: float | None = None
+    reps: int | None = None
+
+
+@router.post("/api/check-pr")
+async def check_pr_for_user(
+    data: PRCheckRequestWithUser,
+    session: AsyncSession = Depends(get_session),
+):
+    """Check if a set represents a new PR. Accepts user_id in body instead of requiring a workout session."""
+    new_prs = await check_prs(
+        user_id=data.user_id,
+        exercise_id=data.exercise_id,
+        weight=data.weight,
+        reps=data.reps,
+        session_id=None,
+        db=session,
+    )
+
+    await session.commit()
+    return {"new_prs": new_prs}
