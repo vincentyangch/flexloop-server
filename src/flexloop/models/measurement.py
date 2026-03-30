@@ -13,5 +13,5 @@ class Measurement(Base):
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
     date: Mapped[date] = mapped_column(Date, nullable=False)
     type: Mapped[str] = mapped_column(String(20), nullable=False)
-    value_cm: Mapped[float] = mapped_column(Float, nullable=False)
+    value: Mapped[float] = mapped_column(Float, nullable=False)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)

@@ -15,8 +15,9 @@ from flexloop.models.backup import Backup
 @pytest.fixture
 async def user(db_session):
     user = User(
-        name="Test User", gender="male", age=28, height_cm=180.0,
-        weight_kg=82.0, experience_level="intermediate", goals="hypertrophy",
+        name="Test User", gender="male", age=28, height=180.0,
+        weight=82.0, weight_unit="kg", height_unit="cm",
+        experience_level="intermediate", goals="hypertrophy",
         available_equipment=[],
     )
     db_session.add(user)
@@ -91,14 +92,14 @@ async def test_template(db_session, user):
 async def test_measurement(db_session, user):
     m = Measurement(
         user_id=user.id, date=date(2026, 3, 23),
-        type="waist", value_cm=82.5, notes="Morning measurement",
+        type="waist", value=82.5, notes="Morning measurement",
     )
     db_session.add(m)
     await db_session.commit()
 
     result = await db_session.execute(select(Measurement).where(Measurement.user_id == user.id))
     saved = result.scalar_one()
-    assert saved.value_cm == 82.5
+    assert saved.value == 82.5
 
 
 @pytest.mark.asyncio
