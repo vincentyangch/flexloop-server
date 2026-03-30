@@ -41,10 +41,12 @@ MACHINE_EXERCISES = {
 
 
 def format_profile(profile: dict) -> str:
+    weight_unit = profile.get("weight_unit", "kg")
+    height_unit = profile.get("height_unit", "cm")
     return (
         f"Name: {profile['name']}\n"
         f"Gender: {profile['gender']}, Age: {profile['age']}\n"
-        f"Height: {profile['height_cm']}cm, Weight: {profile['weight_kg']}kg\n"
+        f"Height: {profile['height']}{height_unit}, Weight: {profile['weight']}{weight_unit}\n"
         f"Experience: {profile['experience_level']}\n"
         f"Goals: {profile['goals']}\n"
         f"Available equipment: {', '.join(profile['available_equipment'])}\n"
