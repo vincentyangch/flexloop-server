@@ -5,9 +5,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from flexloop.models.workout import WorkoutSession, WorkoutSet, SessionFeedback
+from flexloop.services.unit_config import get_unit_config
 
 
-async def detect_fatigue(user_id: int, db: AsyncSession, lookback_days: int = 14) -> dict:
+async def detect_fatigue(user_id: int, db: AsyncSession, lookback_days: int = 14, weight_unit: str = "kg") -> dict:
     """Analyze recent training data for fatigue signals.
 
     Returns a fatigue report with signals and a deload recommendation.
@@ -48,7 +49,7 @@ async def detect_fatigue(user_id: int, db: AsyncSession, lookback_days: int = 14
         signal_count += 1
 
     # Signal 2: Rep counts declining at same weight
-    rep_decline = _check_rep_decline(sessions)
+    rep_decline = _check_rep_decline(sessions, weight_unit)
     if rep_decline:
         signals.append(rep_decline)
         signal_count += 1
@@ -141,8 +142,10 @@ def _check_rpe_trend(sessions: list) -> dict | None:
     return None
 
 
-def _check_rep_decline(sessions: list) -> dict | None:
+def _check_rep_decline(sessions: list, weight_unit: str = "kg") -> dict | None:
     """Check if reps at same weight are declining."""
+    config = get_unit_config(weight_unit)
+
     # Group by exercise, track reps at same weight
     exercise_data: dict[int, list[tuple[float, int]]] = {}
     for s in sessions:
@@ -161,10 +164,10 @@ def _check_rep_decline(sessions: list) -> dict | None:
         reps = [d[1] for d in recent]
 
         # If weight is stable but reps dropping
-        if max(weights) - min(weights) <= 2.5 and reps[-1] < reps[0]:
+        if max(weights) - min(weights) <= config["same_weight_tolerance"] and reps[-1] < reps[0]:
             return {
                 "signal": "rep_decline",
-                "description": f"Reps declining at similar weight ({weights[-1]}kg): {reps[0]} → {reps[-1]} reps.",
+                "description": f"Reps declining at similar weight ({weights[-1]}{weight_unit}): {reps[0]} → {reps[-1]} reps.",
                 "severity": "medium",
             }
     return None
