@@ -17,8 +17,9 @@ async def check_deload(
 ):
     """Check if a deload is recommended based on recent training data."""
     result = await session.execute(select(User).where(User.id == user_id))
-    if not result.scalar_one_or_none():
+    user = result.scalar_one_or_none()
+    if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    report = await detect_fatigue(user_id, session, lookback_days)
+    report = await detect_fatigue(user_id, session, lookback_days, weight_unit=user.weight_unit)
     return report

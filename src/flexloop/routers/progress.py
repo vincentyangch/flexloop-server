@@ -118,6 +118,6 @@ async def get_bodyweight_trend(
     measurements = result.scalars().all()
 
     return [
-        {"date": m.date.isoformat(), "value": m.value_cm}  # value_cm used generically
+        {"date": m.date.isoformat(), "value": m.value}
         for m in measurements
     ]

@@ -13,6 +13,7 @@ router = APIRouter(prefix="/api/warmup", tags=["warmup"])
 async def get_warmup_sets(
     exercise_id: int,
     working_weight: float,
+    weight_unit: str = "kg",
     session: AsyncSession = Depends(get_session),
 ):
     """Get suggested warm-up sets for an exercise at a given working weight."""
@@ -25,6 +26,7 @@ async def get_warmup_sets(
         working_weight=working_weight,
         exercise_category=exercise.category,
         equipment=exercise.equipment,
+        weight_unit=weight_unit,
     )
 
     return {
