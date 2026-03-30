@@ -104,3 +104,25 @@ def test_validate_plan_v2_missing_exercise_groups():
     data = {"days": [{"day_number": 1, "label": "Push"}]}
     result = validate_plan_v2_output(data)
     assert not result.is_valid
+
+
+from pathlib import Path
+from flexloop.ai.prompts import PromptManager
+
+
+def test_prompt_v2_renders_with_plan_mode():
+    prompts_dir = Path(__file__).parent.parent / "prompts"
+    if not prompts_dir.exists():
+        pytest.skip("prompts directory not found")
+    manager = PromptManager(prompts_dir)
+    rendered = manager.render(
+        "plan_generation",
+        user_profile="Gender: male, Age: 28\nWeight: 82.0kg\nExperience: intermediate\nGoals: hypertrophy",
+        plan_mode_description="Cycle length: 6 days\n- Day 1 (Push A): chest, shoulders, triceps",
+        weight_unit="kg",
+    )
+    assert "82.0kg" in rendered
+    assert "Push A" in rendered
+    assert "{{user_profile}}" not in rendered
+    assert "{{plan_mode_description}}" not in rendered
+    assert "{{weight_unit}}" not in rendered

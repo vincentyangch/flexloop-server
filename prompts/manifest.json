@@ -1,5 +1,5 @@
 {
-  "plan_generation": { "default": "v1" },
+  "plan_generation": { "default": "v2" },
   "block_review": { "default": "v1" },
   "session_review": { "default": "v1" },
   "chat": { "default": "v1" }
