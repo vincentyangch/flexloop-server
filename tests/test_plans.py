@@ -7,8 +7,9 @@ from flexloop.models.user import User
 @pytest.fixture
 async def user(db_session):
     user = User(
-        name="Test User", gender="male", age=28, height_cm=180.0,
-        weight_kg=82.0, experience_level="intermediate", goals="hypertrophy",
+        name="Test User", gender="male", age=28, height=180.0,
+        weight=82.0, weight_unit="kg", height_unit="cm",
+        experience_level="intermediate", goals="hypertrophy",
         available_equipment=["barbell", "dumbbell"],
     )
     db_session.add(user)
@@ -52,9 +53,9 @@ def _plan_payload(user_id, exercise_id, name="Push Day Plan"):
                                 "weight": 80.0,
                                 "rpe_target": 7.0,
                                 "sets_json": [
-                                    {"set_number": 1, "target_weight_kg": 80, "target_reps": 5, "target_rpe": 7},
-                                    {"set_number": 2, "target_weight_kg": 80, "target_reps": 5, "target_rpe": 8},
-                                    {"set_number": 3, "target_weight_kg": 80, "target_reps": 5, "target_rpe": 8.5},
+                                    {"set_number": 1, "target_weight": 80, "target_reps": 5, "target_rpe": 7},
+                                    {"set_number": 2, "target_weight": 80, "target_reps": 5, "target_rpe": 8},
+                                    {"set_number": 3, "target_weight": 80, "target_reps": 5, "target_rpe": 8.5},
                                 ],
                             }
                         ],

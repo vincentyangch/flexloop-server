@@ -10,8 +10,9 @@ from flexloop.models.workout import WorkoutSession, WorkoutSet, SessionFeedback
 @pytest.fixture
 async def user_and_exercise(db_session):
     user = User(
-        name="Test User", gender="male", age=28, height_cm=180.0,
-        weight_kg=82.0, experience_level="intermediate", goals="hypertrophy",
+        name="Test User", gender="male", age=28, height=180.0,
+        weight=82.0, weight_unit="kg", height_unit="cm",
+        experience_level="intermediate", goals="hypertrophy",
         available_equipment=["barbell"],
     )
     exercise = Exercise(

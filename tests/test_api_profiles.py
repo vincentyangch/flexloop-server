@@ -7,8 +7,8 @@ async def test_create_profile(client):
         "name": "Test User",
         "gender": "male",
         "age": 28,
-        "height_cm": 180.0,
-        "weight_kg": 82.0,
+        "height": 180.0,
+        "weight": 82.0,
         "experience_level": "intermediate",
         "goals": "hypertrophy",
         "available_equipment": ["barbell", "dumbbells"],
@@ -25,8 +25,8 @@ async def test_get_profile(client):
         "name": "Test User",
         "gender": "female",
         "age": 25,
-        "height_cm": 165.0,
-        "weight_kg": 60.0,
+        "height": 165.0,
+        "weight": 60.0,
         "experience_level": "beginner",
         "goals": "general fitness",
         "available_equipment": [],
@@ -50,8 +50,8 @@ async def test_update_profile(client):
         "name": "Test User",
         "gender": "male",
         "age": 28,
-        "height_cm": 180.0,
-        "weight_kg": 82.0,
+        "height": 180.0,
+        "weight": 82.0,
         "experience_level": "intermediate",
         "goals": "hypertrophy",
         "available_equipment": [],
@@ -59,10 +59,10 @@ async def test_update_profile(client):
     user_id = create_resp.json()["id"]
 
     response = await client.put(f"/api/profiles/{user_id}", json={
-        "weight_kg": 84.0,
+        "weight": 84.0,
         "goals": "strength",
     })
     assert response.status_code == 200
-    assert response.json()["weight_kg"] == 84.0
+    assert response.json()["weight"] == 84.0
     assert response.json()["goals"] == "strength"
     assert response.json()["name"] == "Test User"

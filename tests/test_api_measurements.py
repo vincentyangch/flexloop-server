@@ -6,8 +6,9 @@ from flexloop.models.user import User
 @pytest.fixture
 async def user(db_session):
     user = User(
-        name="Test User", gender="male", age=28, height_cm=180.0,
-        weight_kg=82.0, experience_level="intermediate", goals="hypertrophy",
+        name="Test User", gender="male", age=28, height=180.0,
+        weight=82.0, weight_unit="kg", height_unit="cm",
+        experience_level="intermediate", goals="hypertrophy",
         available_equipment=[],
     )
     db_session.add(user)
@@ -21,23 +22,23 @@ async def test_create_measurement(client, user):
         "user_id": user.id,
         "date": "2026-03-23",
         "type": "waist",
-        "value_cm": 82.5,
+        "value": 82.5,
         "notes": "Morning measurement",
     })
     assert response.status_code == 201
-    assert response.json()["value_cm"] == 82.5
+    assert response.json()["value"] == 82.5
 
 
 @pytest.mark.asyncio
 async def test_list_measurements(client, user):
     await client.post("/api/measurements", json={
-        "user_id": user.id, "date": "2026-03-20", "type": "waist", "value_cm": 83.0,
+        "user_id": user.id, "date": "2026-03-20", "type": "waist", "value": 83.0,
     })
     await client.post("/api/measurements", json={
-        "user_id": user.id, "date": "2026-03-23", "type": "waist", "value_cm": 82.5,
+        "user_id": user.id, "date": "2026-03-23", "type": "waist", "value": 82.5,
     })
     await client.post("/api/measurements", json={
-        "user_id": user.id, "date": "2026-03-23", "type": "chest", "value_cm": 100.0,
+        "user_id": user.id, "date": "2026-03-23", "type": "chest", "value": 100.0,
     })
 
     response = await client.get(f"/api/users/{user.id}/measurements?type=waist")

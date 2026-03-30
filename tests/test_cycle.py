@@ -9,8 +9,9 @@ from flexloop.models.user import User
 @pytest.fixture
 async def user(db_session):
     user = User(
-        name="Test User", gender="male", age=28, height_cm=180.0,
-        weight_kg=82.0, experience_level="intermediate", goals="strength",
+        name="Test User", gender="male", age=28, height=180.0,
+        weight=82.0, weight_unit="kg", height_unit="cm",
+        experience_level="intermediate", goals="strength",
         available_equipment=["barbell"],
     )
     db_session.add(user)
