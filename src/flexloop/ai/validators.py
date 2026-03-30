@@ -29,6 +29,21 @@ def validate_plan_output(data: dict) -> ValidationResult:
     return ValidationResult(is_valid=len(errors) == 0, errors=errors)
 
 
+def validate_plan_v2_output(data: dict) -> ValidationResult:
+    errors = []
+    if "days" not in data:
+        errors.append("Missing required field: days")
+    elif not isinstance(data["days"], list) or len(data["days"]) == 0:
+        errors.append("'days' must be a non-empty list")
+    else:
+        for i, day in enumerate(data["days"]):
+            if "exercise_groups" not in day:
+                errors.append(f"Day {i + 1} missing 'exercise_groups'")
+            elif not isinstance(day["exercise_groups"], list):
+                errors.append(f"Day {i + 1} 'exercise_groups' must be a list")
+    return ValidationResult(is_valid=len(errors) == 0, errors=errors)
+
+
 def validate_review_output(data: dict) -> ValidationResult:
     errors = []
 

@@ -38,3 +38,69 @@ def test_plan_generate_request_invalid_mode():
 def test_plan_generate_request_missing_mode():
     with pytest.raises(ValidationError):
         PlanGenerateRequest(user_id=1)
+
+
+from flexloop.ai.validators import validate_plan_v2_output
+
+
+def test_format_plan_profile_excludes_name_height_equipment():
+    from flexloop.routers.ai import format_plan_profile
+    from unittest.mock import MagicMock
+
+    user = MagicMock()
+    user.gender = "male"
+    user.age = 28
+    user.weight = 82.0
+    user.weight_unit = "kg"
+    user.experience_level = "intermediate"
+    user.goals = "hypertrophy"
+    user.name = "Test"
+    user.height = 180.0
+    user.available_equipment = ["barbell"]
+
+    profile = format_plan_profile(user)
+    assert "male" in profile
+    assert "28" in profile
+    assert "82.0" in profile
+    assert "intermediate" in profile
+    assert "hypertrophy" in profile
+    assert "Test" not in profile
+    assert "180" not in profile
+    assert "barbell" not in profile
+
+
+def test_validate_plan_v2_valid():
+    data = {
+        "days": [
+            {
+                "day_number": 1,
+                "label": "Push A",
+                "focus": "chest,shoulders,triceps",
+                "exercise_groups": [
+                    {
+                        "group_type": "straight",
+                        "order": 1,
+                        "exercises": [{"exercise_name": "Bench Press", "sets": 4, "reps": 8}],
+                    }
+                ],
+            }
+        ]
+    }
+    result = validate_plan_v2_output(data)
+    assert result.is_valid
+
+
+def test_validate_plan_v2_missing_days():
+    result = validate_plan_v2_output({})
+    assert not result.is_valid
+
+
+def test_validate_plan_v2_empty_days():
+    result = validate_plan_v2_output({"days": []})
+    assert not result.is_valid
+
+
+def test_validate_plan_v2_missing_exercise_groups():
+    data = {"days": [{"day_number": 1, "label": "Push"}]}
+    result = validate_plan_v2_output(data)
+    assert not result.is_valid

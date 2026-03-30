@@ -84,6 +84,16 @@ def format_user_profile(user: User) -> str:
     )
 
 
+def format_plan_profile(user: User) -> str:
+    return (
+        f"Gender: {user.gender}, Age: {user.age}\n"
+        f"Weight: {user.weight}{user.weight_unit}\n"
+        f"Weight unit: {user.weight_unit}\n"
+        f"Experience: {user.experience_level}\n"
+        f"Goals: {user.goals}"
+    )
+
+
 # --- Plan Generation ---
 
 @router.post("/plan/generate")
