@@ -40,6 +40,28 @@ def test_warmup_weights_rounded_to_2_5():
         assert s["weight"] % 2.5 == 0
 
 
+def test_warmup_for_225lbs_compound():
+    sets = generate_warmup_sets(225.0, "compound", "barbell", weight_unit="lbs")
+    assert len(sets) >= 2
+    # First set should be bar weight (45 lbs)
+    assert sets[0]["weight"] == 45.0
+    assert sets[0]["reps"] == 10
+    # Weights should be ascending
+    for i in range(1, len(sets)):
+        assert sets[i]["weight"] > sets[i - 1]["weight"]
+
+
+def test_warmup_lbs_weights_rounded_to_10():
+    sets = generate_warmup_sets(225.0, "compound", "barbell", weight_unit="lbs")
+    for s in sets:
+        assert s["weight"] % 10 == 0 or s["weight"] == 45.0
+
+
+def test_no_warmup_for_light_weight_lbs():
+    sets = generate_warmup_sets(35.0, "compound", "barbell", weight_unit="lbs")
+    assert sets == []
+
+
 @pytest.mark.asyncio
 async def test_warmup_api_endpoint(client, db_session):
     exercise = Exercise(

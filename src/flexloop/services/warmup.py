@@ -1,18 +1,23 @@
+from flexloop.services.unit_config import get_unit_config
+
+
 def generate_warmup_sets(
     working_weight: float,
     exercise_category: str = "compound",
     equipment: str = "barbell",
+    weight_unit: str = "kg",
 ) -> list[dict]:
     """Generate warm-up sets ramping up to the working weight.
 
     Only generates warm-ups for compound exercises with meaningful weight.
-    Working weight is always in kg (server stores kg).
     Returns warm-up weights rounded to equipment-appropriate increments.
     """
-    if exercise_category != "compound" or working_weight <= 20:
+    config = get_unit_config(weight_unit)
+
+    if exercise_category != "compound" or working_weight <= config["min_meaningful_weight"]:
         return []
 
-    bar_weight, increment = _equipment_config(equipment)
+    bar_weight, increment = _equipment_config(equipment, weight_unit=weight_unit)
     sets = []
 
     # Define warm-up steps as (percentage of working weight, reps)
@@ -55,15 +60,16 @@ def generate_warmup_sets(
     return sets
 
 
-def _equipment_config(equipment: str) -> tuple[float, float]:
-    """Return (bar_weight_kg, plate_increment_kg) for equipment type."""
+def _equipment_config(equipment: str, weight_unit: str = "kg") -> tuple[float, float]:
+    """Return (bar_weight, plate_increment) for equipment type and unit."""
+    config = get_unit_config(weight_unit)
     equip = equipment.lower()
     if equip == "barbell":
-        return 20.0, 5.0    # 20kg bar, 2x2.5kg plates = 5kg steps
+        return config["bar_weight"], config["barbell_increment"]
     elif equip in ("dumbbell", "dumbbells"):
-        return 0.0, 2.5     # no bar, 2.5kg dumbbell steps
+        return 0.0, config["dumbbell_increment"]
     else:
-        return 0.0, 2.5     # default
+        return 0.0, config["default_increment"]
 
 
 def round_to_nearest(value: float, increment: float) -> float:
