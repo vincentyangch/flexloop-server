@@ -7,8 +7,10 @@ class UserCreate(BaseModel):
     name: str
     gender: str
     age: int
-    height_cm: float
-    weight_kg: float
+    height: float
+    weight: float
+    weight_unit: str = "kg"
+    height_unit: str = "cm"
     experience_level: str
     goals: str
     available_equipment: list[str] = []
@@ -18,8 +20,8 @@ class UserUpdate(BaseModel):
     name: str | None = None
     gender: str | None = None
     age: int | None = None
-    height_cm: float | None = None
-    weight_kg: float | None = None
+    height: float | None = None
+    weight: float | None = None
     experience_level: str | None = None
     goals: str | None = None
     available_equipment: list[str] | None = None
@@ -30,8 +32,10 @@ class UserResponse(BaseModel):
     name: str
     gender: str
     age: int
-    height_cm: float
-    weight_kg: float
+    height: float
+    weight: float
+    weight_unit: str
+    height_unit: str
     experience_level: str
     goals: str
     available_equipment: list[str]

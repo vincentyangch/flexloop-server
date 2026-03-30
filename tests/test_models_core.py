@@ -12,8 +12,10 @@ async def test_create_user(db_session):
         name="Test User",
         gender="male",
         age=28,
-        height_cm=180.0,
-        weight_kg=82.0,
+        height=180.0,
+        weight=82.0,
+        weight_unit="kg",
+        height_unit="cm",
         experience_level="intermediate",
         goals="hypertrophy",
         available_equipment=["barbell", "dumbbells", "pull_up_bar"],
@@ -26,7 +28,34 @@ async def test_create_user(db_session):
     assert saved.name == "Test User"
     assert saved.experience_level == "intermediate"
     assert "barbell" in saved.available_equipment
+    assert saved.weight_unit == "kg"
+    assert saved.height_unit == "cm"
     assert saved.created_at is not None
+
+
+@pytest.mark.asyncio
+async def test_create_user_imperial(db_session):
+    user = User(
+        name="Imperial User",
+        gender="female",
+        age=25,
+        height=66.0,
+        weight=145.0,
+        weight_unit="lbs",
+        height_unit="in",
+        experience_level="beginner",
+        goals="strength",
+        available_equipment=["dumbbells"],
+    )
+    db_session.add(user)
+    await db_session.commit()
+
+    result = await db_session.execute(select(User).where(User.name == "Imperial User"))
+    saved = result.scalar_one()
+    assert saved.weight == 145.0
+    assert saved.weight_unit == "lbs"
+    assert saved.height == 66.0
+    assert saved.height_unit == "in"
 
 
 @pytest.mark.asyncio
