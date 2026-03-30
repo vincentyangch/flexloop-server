@@ -76,7 +76,8 @@ def format_user_profile(user: User) -> str:
     return (
         f"Name: {user.name}\n"
         f"Gender: {user.gender}, Age: {user.age}\n"
-        f"Height: {user.height_cm}cm, Weight: {user.weight_kg}kg\n"
+        f"Height: {user.height}{user.height_unit}, Weight: {user.weight}{user.weight_unit}\n"
+        f"Weight unit: {user.weight_unit}\n"
         f"Experience: {user.experience_level}\n"
         f"Goals: {user.goals}\n"
         f"Available equipment: {', '.join(user.available_equipment)}"
@@ -153,6 +154,17 @@ async def generate_plan(
             await session.flush()
 
             for i, ex_data in enumerate(group_data.get("exercises", [])):
+                # Normalize sets_json field names (AI may output target_weight_kg or target_weight)
+                raw_sets = ex_data.get("sets_json", [])
+                if raw_sets:
+                    normalized = []
+                    for s in raw_sets:
+                        ns = dict(s)
+                        if "target_weight_kg" in ns and "target_weight" not in ns:
+                            ns["target_weight"] = ns.pop("target_weight_kg")
+                        normalized.append(ns)
+                    ex_data["sets_json"] = normalized
+
                 ex_name = ex_data.get("exercise_name", "").lower()
                 exercise = exercises.get(ex_name)
 
@@ -336,7 +348,7 @@ async def ai_chat(
             for ex_id, sets in sets_by_exercise.items():
                 name = exercise_names.get(ex_id, f"Exercise #{ex_id}")
                 set_strs = [
-                    f"{s.weight}kg x {s.reps}" + (f" RPE {s.rpe}" if s.rpe else "")
+                    f"{s.weight}{user.weight_unit} x {s.reps}" + (f" RPE {s.rpe}" if s.rpe else "")
                     for s in sets if s.weight and s.reps
                 ]
                 if set_strs:
@@ -365,7 +377,7 @@ async def ai_chat(
         pr_lines = []
         for pr in prs:
             name = exercise_names.get(pr.exercise_id, f"Exercise #{pr.exercise_id}")
-            pr_lines.append(f"- {name}: est. 1RM {pr.value:.1f}kg")
+            pr_lines.append(f"- {name}: est. 1RM {pr.value:.1f}{user.weight_unit}")
         history_text += "\n\nPersonal Records:\n" + "\n".join(pr_lines)
 
     messages = [{"role": m.role, "content": m.content} for m in history]
@@ -431,7 +443,7 @@ async def ai_review(
         sets_summary = []
         for s in w.sets:
             parts = []
-            if s.weight: parts.append(f"{s.weight}kg")
+            if s.weight: parts.append(f"{s.weight}{user.weight_unit}")
             if s.reps: parts.append(f"{s.reps}reps")
             if s.rpe: parts.append(f"RPE {s.rpe}")
             sets_summary.append(f"  Set {s.set_number} ({s.set_type}): {', '.join(parts)}")
