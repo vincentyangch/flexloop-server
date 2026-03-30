@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from flexloop.db.engine import get_session
+from flexloop.models.user import User
 from flexloop.models.workout import SessionFeedback, WorkoutSession, WorkoutSet
 from flexloop.services.pr_detection import check_prs
 from flexloop.schemas.workout import (
@@ -169,6 +170,9 @@ async def check_set_pr(
     if not workout:
         raise HTTPException(status_code=404, detail="Workout session not found")
 
+    user_result = await session.execute(select(User).where(User.id == workout.user_id))
+    user = user_result.scalar_one_or_none()
+
     new_prs = await check_prs(
         user_id=workout.user_id,
         exercise_id=data.exercise_id,
@@ -176,6 +180,7 @@ async def check_set_pr(
         reps=data.reps,
         session_id=workout_id,
         db=session,
+        weight_unit=user.weight_unit if user else "kg",
     )
 
     await session.commit()
@@ -195,6 +200,9 @@ async def check_pr_for_user(
     session: AsyncSession = Depends(get_session),
 ):
     """Check if a set represents a new PR. Accepts user_id in body instead of requiring a workout session."""
+    user_result = await session.execute(select(User).where(User.id == data.user_id))
+    user = user_result.scalar_one_or_none()
+
     new_prs = await check_prs(
         user_id=data.user_id,
         exercise_id=data.exercise_id,
@@ -202,6 +210,7 @@ async def check_pr_for_user(
         reps=data.reps,
         session_id=None,
         db=session,
+        weight_unit=user.weight_unit if user else "kg",
     )
 
     await session.commit()
