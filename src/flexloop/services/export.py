@@ -30,7 +30,8 @@ async def export_user_data(user_id: int, session: AsyncSession) -> dict:
     return {
         "user": {
             "name": user.name, "gender": user.gender, "age": user.age,
-            "height_cm": user.height_cm, "weight_kg": user.weight_kg,
+            "height": user.height, "weight": user.weight,
+            "weight_unit": user.weight_unit, "height_unit": user.height_unit,
             "experience_level": user.experience_level, "goals": user.goals,
             "available_equipment": user.available_equipment,
         },
@@ -55,7 +56,7 @@ async def export_user_data(user_id: int, session: AsyncSession) -> dict:
         "measurements": [
             {
                 "date": m.date.isoformat(), "type": m.type,
-                "value_cm": m.value_cm, "notes": m.notes,
+                "value": m.value, "notes": m.notes,
             }
             for m in measurements
         ],
