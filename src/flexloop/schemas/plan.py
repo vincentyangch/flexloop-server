@@ -65,7 +65,7 @@ class PlanListResponse(BaseModel):
 
 class SetTarget(BaseModel):
     set_number: int
-    target_weight_kg: float | None = None
+    target_weight: float | None = None
     target_reps: int = 10
     target_rpe: float | None = None
 
