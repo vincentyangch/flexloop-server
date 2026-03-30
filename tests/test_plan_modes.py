@@ -1,3 +1,6 @@
+import pytest
+from pydantic import ValidationError
+from flexloop.schemas.plan import PlanGenerateRequest
 from flexloop.ai.plan_modes import PLAN_MODES, VALID_PLAN_MODES
 
 
@@ -20,3 +23,18 @@ def test_each_mode_has_required_fields():
         assert "cycle_length" in mode, f"{key} missing cycle_length"
         assert "description" in mode, f"{key} missing description"
         assert isinstance(mode["cycle_length"], int)
+
+
+def test_plan_generate_request_valid():
+    req = PlanGenerateRequest(user_id=1, plan_mode="ppl_6")
+    assert req.plan_mode == "ppl_6"
+
+
+def test_plan_generate_request_invalid_mode():
+    with pytest.raises(ValidationError):
+        PlanGenerateRequest(user_id=1, plan_mode="invalid_mode")
+
+
+def test_plan_generate_request_missing_mode():
+    with pytest.raises(ValidationError):
+        PlanGenerateRequest(user_id=1)

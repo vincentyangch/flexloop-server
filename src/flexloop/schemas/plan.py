@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -112,3 +113,7 @@ class PlanUpdate(BaseModel):
 
 class PlanGenerateRequest(BaseModel):
     user_id: int
+    plan_mode: Literal[
+        "full_body_3", "upper_lower_4", "ppl_6", "arnold_6",
+        "body_part_5", "ppl_3", "phul_4"
+    ]
