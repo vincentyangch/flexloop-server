@@ -3,7 +3,7 @@ import logging
 
 from flexloop.ai.base import LLMAdapter, LLMResponse
 from flexloop.ai.prompts import PromptManager
-from flexloop.ai.validators import validate_plan_output, validate_review_output
+from flexloop.ai.validators import validate_plan_v2_output, validate_review_output
 from flexloop.config import settings
 
 logger = logging.getLogger(__name__)
@@ -14,11 +14,15 @@ class AICoach:
         self.adapter = adapter
         self.prompts = prompt_manager
 
-    async def generate_plan(self, user_profile: str) -> tuple[dict | None, LLMResponse]:
+    async def generate_plan(
+        self, user_profile: str, plan_mode_description: str, weight_unit: str,
+    ) -> tuple[dict | None, LLMResponse]:
         prompt = self.prompts.render(
             "plan_generation",
             provider=settings.ai_provider,
             user_profile=user_profile,
+            plan_mode_description=plan_mode_description,
+            weight_unit=weight_unit,
         )
 
         response = await self.adapter.generate(
@@ -34,7 +38,7 @@ class AICoach:
             logger.warning("AI returned non-JSON response for plan generation")
             return None, response
 
-        validation = validate_plan_output(data)
+        validation = validate_plan_v2_output(data)
         if not validation.is_valid:
             logger.warning(f"AI plan output validation failed: {validation.errors}")
             return None, response

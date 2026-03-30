@@ -100,11 +100,16 @@ def format_plan_profile(user: User) -> str:
 async def generate_plan(
     data: PlanGenerateRequest, session: AsyncSession = Depends(get_session)
 ):
+    from flexloop.ai.plan_modes import PLAN_MODES
+
     # Load user
     result = await session.execute(select(User).where(User.id == data.user_id))
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+
+    # Look up plan mode metadata
+    mode = PLAN_MODES[data.plan_mode]
 
     # Load exercise library for name-to-id mapping
     ex_result = await session.execute(select(Exercise))
@@ -112,11 +117,12 @@ async def generate_plan(
 
     # Generate plan via AI
     coach = get_ai_coach()
-    profile_text = format_user_profile(user)
-    plan_data, llm_response = await coach.generate_plan(profile_text)
+    profile_text = format_plan_profile(user)
+    plan_data, llm_response = await coach.generate_plan(
+        profile_text, mode["description"], user.weight_unit,
+    )
 
     if plan_data is None:
-        # AI returned invalid output — return raw response for debugging
         return {
             "status": "error",
             "message": "AI returned invalid plan format. Raw response included.",
@@ -130,13 +136,12 @@ async def generate_plan(
         update(Plan).where(Plan.user_id == user.id).values(status="inactive")
     )
 
-    # Save plan to database
-    cycle_length = plan_data.get("cycle_length", len(plan_data.get("days", [])) or 3)
+    # Save plan — inject metadata from PLAN_MODES, not from AI output
     plan = Plan(
         user_id=user.id,
-        name=plan_data.get("plan_name", "AI Generated Plan"),
-        split_type=plan_data.get("split_type", "custom"),
-        cycle_length=cycle_length,
+        name=mode["plan_name"],
+        split_type=mode["split_type"],
+        cycle_length=mode["cycle_length"],
         status="active",
         ai_generated=True,
     )
