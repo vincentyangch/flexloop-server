@@ -2,13 +2,15 @@ import pytest
 
 from flexloop.models.user import User
 from flexloop.models.exercise import Exercise
+from flexloop.services.pr_detection import check_prs
 
 
 @pytest.fixture
 async def seed_user_exercise(db_session):
     user = User(
-        name="Test User", gender="male", age=28, height_cm=180.0,
-        weight_kg=82.0, experience_level="intermediate", goals="hypertrophy",
+        name="Test User", gender="male", age=28, height=180.0,
+        weight=82.0, weight_unit="kg", height_unit="cm",
+        experience_level="intermediate", goals="hypertrophy",
         available_equipment=["barbell"],
     )
     exercise = Exercise(
@@ -132,3 +134,34 @@ async def test_get_exercise_prs(client, seed_user_exercise):
     assert resp.status_code == 200
     prs = resp.json()
     assert len(prs) >= 1
+
+
+@pytest.mark.asyncio
+async def test_pr_detail_shows_lbs_unit(db_session):
+    user = User(
+        name="Lbs User", gender="male", age=25, height=70.0,
+        weight=180.0, weight_unit="lbs", height_unit="in",
+        experience_level="intermediate", goals="strength",
+        available_equipment=["barbell"],
+    )
+    exercise = Exercise(
+        name="Squat", muscle_group="quads", equipment="barbell",
+        category="compound", difficulty="intermediate",
+    )
+    db_session.add_all([user, exercise])
+    await db_session.commit()
+
+    new_prs = await check_prs(
+        user_id=user.id,
+        exercise_id=exercise.id,
+        weight=225.0,
+        reps=5,
+        session_id=None,
+        db=db_session,
+        weight_unit="lbs",
+    )
+    # First set always creates 1RM PR
+    assert any(pr["type"] == "estimated_1rm" for pr in new_prs)
+    for pr in new_prs:
+        assert "lbs" in pr["detail"]
+        assert "kg" not in pr["detail"]

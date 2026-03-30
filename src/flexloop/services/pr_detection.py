@@ -23,6 +23,7 @@ async def check_prs(
     reps: int | None,
     session_id: int | None,
     db: AsyncSession,
+    weight_unit: str = "kg",
 ) -> list[dict]:
     """Check if a set represents any new personal records. Returns list of new PRs."""
     new_prs = []
@@ -63,7 +64,7 @@ async def check_prs(
             "type": "estimated_1rm",
             "value": round(estimated_1rm, 1),
             "previous": round(old_value, 1),
-            "detail": f"{round(weight, 1)}kg x {reps} reps",
+            "detail": f"{round(weight, 1)}{weight_unit} x {reps} reps",
         })
 
     # Check rep PR at this weight
@@ -89,7 +90,7 @@ async def check_prs(
                 "type": "rep_at_weight",
                 "value": reps,
                 "previous": int(old_reps),
-                "detail": f"{reps} reps at {round(weight, 1)}kg",
+                "detail": f"{reps} reps at {round(weight, 1)}{weight_unit}",
             })
     else:
         pr = PersonalRecord(
@@ -125,7 +126,7 @@ async def check_prs(
                 "type": "volume",
                 "value": round(volume, 1),
                 "previous": round(old_volume, 1),
-                "detail": f"{round(weight, 1)}kg x {reps} = {round(volume, 1)}kg volume",
+                "detail": f"{round(weight, 1)}{weight_unit} x {reps} = {round(volume, 1)}{weight_unit} volume",
             })
     else:
         pr = PersonalRecord(
