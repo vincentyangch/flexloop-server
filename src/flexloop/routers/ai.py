@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from flexloop.ai.coach import AICoach
+from flexloop.ai.exercise_resolver import resolve_exercise_name
 from flexloop.ai.factory import create_adapter
 from flexloop.ai.prompts import PromptManager
 from flexloop.config import settings
@@ -180,18 +181,11 @@ async def generate_plan(
                         normalized.append(ns)
                     ex_data["sets_json"] = normalized
 
-                ex_name = ex_data.get("exercise_name", "").lower()
-                exercise = exercises.get(ex_name)
+                ex_name = ex_data.get("exercise_name", "")
+                exercise = resolve_exercise_name(ex_name, exercises)
 
                 if not exercise:
-                    # Try fuzzy match
-                    for key, ex in exercises.items():
-                        if ex_name in key or key in ex_name:
-                            exercise = ex
-                            break
-
-                if not exercise:
-                    logger.warning(f"Exercise not found in library: {ex_data.get('exercise_name')}")
+                    logger.warning(f"Exercise not found in library: {ex_name}")
                     continue
 
                 plan_exercise = PlanExercise(
