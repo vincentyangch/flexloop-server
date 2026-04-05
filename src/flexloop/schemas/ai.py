@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel
 
 
@@ -50,3 +52,30 @@ class AIUsageResponse(BaseModel):
     call_count: int
 
     model_config = {"from_attributes": True}
+
+
+# --- Plan Refinement ---
+
+
+class SuggestSwapRequest(BaseModel):
+    user_id: int
+    day_number: int
+    exercise_name: str
+
+
+class AdjustVolumeRequest(BaseModel):
+    user_id: int
+    day_number: int
+    direction: Literal["lighter", "heavier", "auto"]
+
+
+class ExplainExerciseRequest(BaseModel):
+    user_id: int
+    day_number: int
+    exercise_name: str
+
+
+class PlanRefineRequest(BaseModel):
+    user_id: int
+    message: str
+    history: list[dict] = []
