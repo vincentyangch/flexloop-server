@@ -20,11 +20,16 @@ from flexloop.models.personal_record import PersonalRecord
 from flexloop.models.plan import ExerciseGroup, Plan, PlanDay, PlanExercise
 from flexloop.models.user import User
 from flexloop.models.workout import WorkoutSession, WorkoutSet
+from flexloop.ai.refiner import PlanRefiner, REFINER_TOOLS
 from flexloop.schemas.ai import (
     AIChatRequest,
     AIChatResponse,
     AIReviewRequest,
     AIUsageResponse,
+    SuggestSwapRequest,
+    AdjustVolumeRequest,
+    ExplainExerciseRequest,
+    PlanRefineRequest,
 )
 from flexloop.schemas.plan import PlanGenerateRequest
 
@@ -497,6 +502,316 @@ async def ai_review(
         **review_data,
         "input_tokens": llm_response.input_tokens,
         "output_tokens": llm_response.output_tokens,
+    }
+
+
+# --- Plan Refinement ---
+
+
+def get_plan_refiner() -> PlanRefiner:
+    adapter = create_adapter(
+        provider=settings.ai_provider, model=settings.ai_model,
+        api_key=settings.ai_api_key, base_url=settings.ai_base_url,
+    )
+    prompt_manager = PromptManager(PROMPTS_DIR)
+    return PlanRefiner(adapter=adapter, prompt_manager=prompt_manager)
+
+
+def _serialize_plan_for_prompt(plan, exercise_names: dict) -> str:
+    lines = []
+    for day in sorted(plan.days or [], key=lambda d: d.day_number):
+        exercises = []
+        for group in sorted(day.exercise_groups or [], key=lambda g: g.order):
+            for ex in sorted(group.exercises or [], key=lambda e: e.order):
+                name = exercise_names.get(ex.exercise_id, f"Exercise #{ex.exercise_id}")
+                exercises.append(f"{name} {ex.sets}x{ex.reps}")
+        lines.append(f"Day {day.day_number} ({day.label}): {', '.join(exercises)}")
+    return "\n".join(lines)
+
+
+def _plan_to_data(plan, exercise_names: dict) -> dict:
+    return {
+        "days": [
+            {
+                "day_number": d.day_number,
+                "label": d.label,
+                "focus": d.focus,
+                "exercise_groups": [
+                    {
+                        "group_type": g.group_type,
+                        "order": g.order,
+                        "rest_after_group_sec": g.rest_after_group_sec,
+                        "exercises": [
+                            {
+                                "exercise_id": e.exercise_id,
+                                "exercise_name": exercise_names.get(e.exercise_id, ""),
+                                "order": e.order,
+                                "sets": e.sets,
+                                "reps": e.reps,
+                                "weight": e.weight,
+                                "rpe_target": e.rpe_target,
+                                "sets_json": e.sets_json,
+                                "notes": e.notes,
+                            }
+                            for e in sorted(g.exercises or [], key=lambda x: x.order)
+                        ],
+                    }
+                    for g in sorted(d.exercise_groups or [], key=lambda x: x.order)
+                ],
+            }
+            for d in sorted(plan.days or [], key=lambda x: x.day_number)
+        ]
+    }
+
+
+async def _load_refinement_context(plan_id: int, user_id: int, session):
+    result = await session.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    plan_result = await session.execute(
+        select(Plan).where(Plan.id == plan_id)
+        .options(
+            selectinload(Plan.days)
+            .selectinload(PlanDay.exercise_groups)
+            .selectinload(ExerciseGroup.exercises)
+        )
+    )
+    plan = plan_result.scalar_one_or_none()
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    ex_result = await session.execute(select(Exercise))
+    all_exercises = ex_result.scalars().all()
+    exercise_library = {e.name.lower(): e for e in all_exercises}
+    exercise_names = {e.id: e.name for e in all_exercises}
+
+    return user, plan, exercise_library, exercise_names
+
+
+@router.post("/plan/{plan_id}/suggest-swap")
+async def suggest_swap(
+    plan_id: int, data: SuggestSwapRequest, session: AsyncSession = Depends(get_session)
+):
+    user, plan, exercise_library, exercise_names = await _load_refinement_context(
+        plan_id, data.user_id, session
+    )
+
+    plan_data = _plan_to_data(plan, exercise_names)
+    plan_text = _serialize_plan_for_prompt(plan, exercise_names)
+    ex_list = "\n".join(sorted(exercise_names.values()))
+
+    refiner = get_plan_refiner()
+    system_prompt = refiner.prompts.render(
+        "plan_refinement",
+        user_profile=format_plan_profile(user),
+        plan_structure=plan_text,
+        exercise_library=ex_list,
+        weight_unit=user.weight_unit,
+    )
+
+    user_prompt = (
+        f"Suggest 3 alternative exercises to replace '{data.exercise_name}' "
+        f"on Day {data.day_number}. For each alternative, call swap_exercise with "
+        f"full details (sets, reps, rpe_target, weight). Consider the user's profile and goals."
+    )
+
+    changes, text, response = await refiner.refine_single_shot(
+        system_prompt, user_prompt, plan_data, exercise_library,
+        tools=[t for t in REFINER_TOOLS if t.name == "swap_exercise"],
+    )
+
+    # Find original exercise info
+    found = refiner._find_exercise_in_plan(_plan_to_data(plan, exercise_names), data.day_number, data.exercise_name)
+    original = None
+    if found:
+        _, group, ex, _ = found
+        original = {"exercise_id": ex.get("exercise_id"), "exercise_name": ex.get("exercise_name")}
+
+    await update_usage(data.user_id, response.to_llm_response(), session)
+    await session.commit()
+
+    alternatives = []
+    for c in changes:
+        alt = {
+            "exercise_name": c.after.get("exercise_name", ""),
+            "exercise_id": c.after.get("exercise_id"),
+            "sets": c.after.get("sets"),
+            "reps": c.after.get("reps"),
+            "rpe_target": c.after.get("rpe_target"),
+            "weight": c.after.get("weight"),
+            "reasoning": c.reasoning,
+        }
+        if c.warning:
+            alt["warning"] = c.warning
+        alternatives.append(alt)
+
+    return {
+        "status": "success",
+        "alternatives": alternatives,
+        "original": original,
+        "input_tokens": response.input_tokens,
+        "output_tokens": response.output_tokens,
+    }
+
+
+@router.post("/plan/{plan_id}/adjust-volume")
+async def adjust_volume(
+    plan_id: int, data: AdjustVolumeRequest, session: AsyncSession = Depends(get_session)
+):
+    user, plan, exercise_library, exercise_names = await _load_refinement_context(
+        plan_id, data.user_id, session
+    )
+
+    plan_data = _plan_to_data(plan, exercise_names)
+    plan_text = _serialize_plan_for_prompt(plan, exercise_names)
+    ex_list = "\n".join(sorted(exercise_names.values()))
+
+    refiner = get_plan_refiner()
+    system_prompt = refiner.prompts.render(
+        "plan_refinement",
+        user_profile=format_plan_profile(user),
+        plan_structure=plan_text,
+        exercise_library=ex_list,
+        weight_unit=user.weight_unit,
+    )
+
+    direction_text = {
+        "lighter": "Reduce volume (fewer sets, lower RPE/weight)",
+        "heavier": "Increase volume (more sets, higher RPE/weight)",
+        "auto": "Adjust volume based on the user's experience level and goals",
+    }
+    user_prompt = (
+        f"Adjust the volume for Day {data.day_number}. Direction: {direction_text[data.direction]}. "
+        f"Call adjust_sets for each exercise that needs changing."
+    )
+
+    changes, text, response = await refiner.refine_single_shot(
+        system_prompt, user_prompt, plan_data, exercise_library,
+        tools=[t for t in REFINER_TOOLS if t.name == "adjust_sets"],
+    )
+
+    await update_usage(data.user_id, response.to_llm_response(), session)
+    await session.commit()
+
+    return {
+        "status": "success",
+        "changes": [
+            {
+                "exercise_name": c.exercise_name,
+                "exercise_id": c.exercise_id,
+                "day_number": c.day_number,
+                "before": c.before,
+                "after": c.after,
+                "reasoning": c.reasoning,
+            }
+            for c in changes
+        ],
+        "input_tokens": response.input_tokens,
+        "output_tokens": response.output_tokens,
+    }
+
+
+@router.post("/plan/{plan_id}/explain")
+async def explain_exercise(
+    plan_id: int, data: ExplainExerciseRequest, session: AsyncSession = Depends(get_session)
+):
+    user, plan, exercise_library, exercise_names = await _load_refinement_context(
+        plan_id, data.user_id, session
+    )
+
+    plan_text = _serialize_plan_for_prompt(plan, exercise_names)
+
+    coach = get_ai_coach()
+    system_prompt = coach.prompts.render(
+        "plan_refinement",
+        user_profile=format_plan_profile(user),
+        plan_structure=plan_text,
+        exercise_library="\n".join(sorted(exercise_names.values())),
+        weight_unit=user.weight_unit,
+    )
+
+    user_prompt = (
+        f"Explain why '{data.exercise_name}' was chosen for Day {data.day_number}. "
+        f"Consider its role in the overall plan, the user's experience level, and goals. "
+        f"Respond with a clear explanation."
+    )
+
+    llm_response = await coach.adapter.generate(
+        system_prompt=system_prompt,
+        user_prompt=user_prompt,
+        temperature=settings.ai_temperature,
+        max_tokens=500,
+    )
+
+    await update_usage(data.user_id, llm_response, session)
+    await session.commit()
+
+    return {
+        "status": "success",
+        "explanation": llm_response.content,
+        "input_tokens": llm_response.input_tokens,
+        "output_tokens": llm_response.output_tokens,
+    }
+
+
+@router.post("/plan/{plan_id}/refine")
+async def refine_plan(
+    plan_id: int, data: PlanRefineRequest, session: AsyncSession = Depends(get_session)
+):
+    user, plan, exercise_library, exercise_names = await _load_refinement_context(
+        plan_id, data.user_id, session
+    )
+
+    plan_data = _plan_to_data(plan, exercise_names)
+    plan_text = _serialize_plan_for_prompt(plan, exercise_names)
+    ex_list = "\n".join(sorted(exercise_names.values()))
+
+    refiner = get_plan_refiner()
+    system_prompt = refiner.prompts.render(
+        "plan_refinement",
+        user_profile=format_plan_profile(user),
+        plan_structure=plan_text,
+        exercise_library=ex_list,
+        weight_unit=user.weight_unit,
+    )
+
+    changes, reply, responses = await refiner.refine_agentic(
+        system_prompt=system_prompt,
+        user_message=data.message,
+        history=data.history,
+        plan_data=plan_data,
+        exercise_library=exercise_library,
+    )
+
+    for resp in responses:
+        await update_usage(data.user_id, resp.to_llm_response(), session)
+    await session.commit()
+
+    total_input = sum(r.input_tokens for r in responses)
+    total_output = sum(r.output_tokens for r in responses)
+
+    return {
+        "status": "success",
+        "reply": reply,
+        "changes": [
+            {
+                "tool_name": c.tool_name,
+                "day_number": c.day_number,
+                "exercise_name": c.exercise_name,
+                "exercise_id": c.exercise_id,
+                "before": c.before,
+                "after": c.after,
+                "reasoning": c.reasoning,
+                **({"warning": c.warning} if c.warning else {}),
+            }
+            for c in changes
+        ],
+        "applied": False,
+        "max_iterations_reached": len(responses) >= refiner.MAX_ITERATIONS,
+        "input_tokens": total_input,
+        "output_tokens": total_output,
     }
 
 
