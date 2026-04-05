@@ -598,61 +598,81 @@ async def suggest_swap(
         plan_id, data.user_id, session
     )
 
-    plan_data = _plan_to_data(plan, exercise_names)
     plan_text = _serialize_plan_for_prompt(plan, exercise_names)
     ex_list = "\n".join(sorted(exercise_names.values()))
 
-    refiner = get_plan_refiner()
-    system_prompt = refiner.prompts.render(
-        "plan_refinement",
-        user_profile=format_plan_profile(user),
-        plan_structure=plan_text,
-        exercise_library=ex_list,
-        weight_unit=user.weight_unit,
+    system_prompt = (
+        "You are an expert fitness coach. Respond ONLY with valid JSON, no other text."
     )
 
     user_prompt = (
-        f"Suggest 3 alternative exercises to replace '{data.exercise_name}' "
-        f"on Day {data.day_number}. For each alternative, call swap_exercise with "
-        f"full details (sets, reps, rpe_target, weight). Consider the user's profile and goals."
+        f"Suggest exactly 3 alternative exercises to replace '{data.exercise_name}' "
+        f"on Day {data.day_number} of this plan:\n\n{plan_text}\n\n"
+        f"User profile:\n{format_plan_profile(user)}\n\n"
+        f"Available exercises (ONLY pick from this list):\n{ex_list}\n\n"
+        f"Weights must use {user.weight_unit}.\n\n"
+        f"Respond with a JSON array of exactly 3 objects:\n"
+        f'[{{"exercise_name": "...", "sets": N, "reps": N, "rpe_target": N.N, '
+        f'"weight": N.N, "reasoning": "one sentence why"}}]'
     )
 
-    changes, text, response = await refiner.refine_single_shot(
-        system_prompt, user_prompt, plan_data, exercise_library,
-        tools=[t for t in REFINER_TOOLS if t.name == "swap_exercise"],
+    coach = get_ai_coach()
+    llm_response = await coach.adapter.generate(
+        system_prompt=system_prompt,
+        user_prompt=user_prompt,
+        temperature=settings.ai_temperature,
+        max_tokens=settings.ai_max_tokens,
     )
 
     # Find original exercise info
-    found = refiner._find_exercise_in_plan(_plan_to_data(plan, exercise_names), data.day_number, data.exercise_name)
+    refiner = get_plan_refiner()
+    found = refiner._find_exercise_in_plan(
+        _plan_to_data(plan, exercise_names), data.day_number, data.exercise_name
+    )
     original = None
     if found:
         _, group, ex, _ = found
         original = {"exercise_id": ex.get("exercise_id"), "exercise_name": ex.get("exercise_name")}
 
-    await update_usage(data.user_id, response.to_llm_response(), session)
+    await update_usage(data.user_id, llm_response, session)
     await session.commit()
 
+    # Parse JSON alternatives from LLM response
     alternatives = []
-    for c in changes:
-        alt = {
-            "exercise_name": c.after.get("exercise_name", ""),
-            "exercise_id": c.after.get("exercise_id"),
-            "sets": c.after.get("sets"),
-            "reps": c.after.get("reps"),
-            "rpe_target": c.after.get("rpe_target"),
-            "weight": c.after.get("weight"),
-            "reasoning": c.reasoning,
-        }
-        if c.warning:
-            alt["warning"] = c.warning
-        alternatives.append(alt)
+    try:
+        raw = llm_response.content.strip()
+        # Strip markdown code fences if present
+        if raw.startswith("```"):
+            raw = raw.split("\n", 1)[1] if "\n" in raw else raw[3:]
+            if raw.endswith("```"):
+                raw = raw[:-3]
+            raw = raw.strip()
+        alt_list = json.loads(raw)
+        if isinstance(alt_list, list):
+            for item in alt_list[:3]:
+                name = item.get("exercise_name", "")
+                resolved = resolve_exercise_name(name, exercise_library)
+                alt = {
+                    "exercise_name": name,
+                    "exercise_id": resolved.id if resolved else None,
+                    "sets": item.get("sets"),
+                    "reps": item.get("reps"),
+                    "rpe_target": item.get("rpe_target"),
+                    "weight": item.get("weight"),
+                    "reasoning": item.get("reasoning", ""),
+                }
+                if not resolved:
+                    alt["warning"] = "exercise not in library"
+                alternatives.append(alt)
+    except (json.JSONDecodeError, AttributeError):
+        logger.warning(f"Failed to parse swap alternatives JSON: {llm_response.content[:200]}")
 
     return {
         "status": "success",
         "alternatives": alternatives,
         "original": original,
-        "input_tokens": response.input_tokens,
-        "output_tokens": response.output_tokens,
+        "input_tokens": llm_response.input_tokens,
+        "output_tokens": llm_response.output_tokens,
     }
 
 
