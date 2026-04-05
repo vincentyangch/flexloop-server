@@ -2,7 +2,9 @@ import logging
 
 from openai import AsyncOpenAI
 
-from flexloop.ai.base import LLMAdapter, LLMResponse
+import json as json_mod
+
+from flexloop.ai.base import LLMAdapter, LLMResponse, ToolCall, ToolUseResponse
 
 logger = logging.getLogger(__name__)
 
@@ -140,3 +142,64 @@ class OpenAIAdapter(LLMAdapter):
             except Exception as e2:
                 logger.error(f"Both API formats failed. Chat: {e}, Responses: {e2}")
                 raise e2
+
+    async def tool_use(
+        self, system_prompt: str, messages: list[dict], tools: list,
+        tool_choice: str = "auto", temperature: float = 0.7, max_tokens: int = 2000,
+    ) -> ToolUseResponse:
+        openai_tools = [
+            {
+                "type": "function",
+                "function": {"name": t.name, "description": t.description, "parameters": t.input_schema},
+            }
+            for t in tools
+        ]
+
+        if tool_choice == "any":
+            tc = "required"
+        elif tool_choice == "auto":
+            tc = "auto"
+        else:
+            tc = {"type": "function", "function": {"name": tool_choice}}
+
+        openai_messages = [{"role": "system", "content": system_prompt}]
+        for msg in messages:
+            if msg["role"] == "tool_results":
+                for r in msg["results"]:
+                    openai_messages.append({
+                        "role": "tool",
+                        "tool_call_id": r["tool_use_id"],
+                        "content": r["content"],
+                    })
+            else:
+                openai_messages.append(msg)
+
+        response = await self.client.chat.completions.create(
+            model=self.model,
+            messages=openai_messages,
+            tools=openai_tools,
+            tool_choice=tc,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+
+        choice = response.choices[0]
+        msg = choice.message
+
+        tool_calls = []
+        if msg.tool_calls:
+            for tc_obj in msg.tool_calls:
+                try:
+                    parsed_input = json_mod.loads(tc_obj.function.arguments)
+                except json_mod.JSONDecodeError:
+                    parsed_input = {}
+                tool_calls.append(ToolCall(id=tc_obj.id, name=tc_obj.function.name, input=parsed_input))
+
+        return ToolUseResponse(
+            content=msg,
+            tool_calls=tool_calls,
+            text=msg.content or "",
+            stop_reason=choice.finish_reason,
+            input_tokens=response.usage.prompt_tokens,
+            output_tokens=response.usage.completion_tokens,
+        )
