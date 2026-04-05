@@ -90,6 +90,13 @@ class OllamaAdapter(LLMAdapter):
                         "tool_call_id": r["tool_use_id"],
                         "content": r["content"],
                     })
+            elif msg["role"] == "assistant" and isinstance(msg.get("content"), dict) and "tool_calls" in msg["content"]:
+                # Round-trip: content is a raw message dict from a previous tool_use() call
+                cm = msg["content"]
+                assistant_msg = {"role": "assistant", "content": cm.get("content", "") or ""}
+                if cm.get("tool_calls"):
+                    assistant_msg["tool_calls"] = cm["tool_calls"]
+                openai_messages.append(assistant_msg)
             else:
                 openai_messages.append(msg)
 

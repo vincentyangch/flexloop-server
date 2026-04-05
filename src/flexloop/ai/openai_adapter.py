@@ -171,6 +171,16 @@ class OpenAIAdapter(LLMAdapter):
                         "tool_call_id": r["tool_use_id"],
                         "content": r["content"],
                     })
+            elif msg["role"] == "assistant" and hasattr(msg.get("content"), "tool_calls"):
+                # Round-trip: content is a ChatCompletionMessage from a previous tool_use() call
+                cm = msg["content"]
+                assistant_msg = {"role": "assistant", "content": cm.content or ""}
+                if cm.tool_calls:
+                    assistant_msg["tool_calls"] = [
+                        {"id": tc.id, "type": "function", "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
+                        for tc in cm.tool_calls
+                    ]
+                openai_messages.append(assistant_msg)
             else:
                 openai_messages.append(msg)
 
