@@ -276,9 +276,11 @@ class PlanRefiner:
             )
             all_responses.append(response)
 
-            if not response.tool_calls or response.stop_reason != "tool_use":
+            # No tool calls → model is done
+            if not response.tool_calls:
                 break
 
+            # Execute all tool calls (always, regardless of stop_reason)
             messages.append({"role": "assistant", "content": response.content})
             tool_results = []
             for tc in response.tool_calls:
@@ -297,6 +299,10 @@ class PlanRefiner:
                     "is_error": change is None and tc.name != "explain_choice",
                 })
             messages.append({"role": "tool_results", "results": tool_results})
+
+            # Check stop reason — provider-agnostic: Anthropic="tool_use", OpenAI/Ollama="tool_calls"
+            if response.stop_reason not in ("tool_use", "tool_calls"):
+                break
 
         final_text = all_responses[-1].text if all_responses else ""
         return changes, final_text, all_responses

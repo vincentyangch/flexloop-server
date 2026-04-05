@@ -232,6 +232,45 @@ async def test_refine_agentic_executes_multiple_tools():
 
 
 @pytest.mark.asyncio
+async def test_refine_agentic_openai_stop_reason():
+    """OpenAI uses 'tool_calls' instead of 'tool_use' — loop must still work."""
+    adapter = MagicMock()
+    prompt_manager = MagicMock()
+    refiner = PlanRefiner(adapter=adapter, prompt_manager=prompt_manager)
+
+    plan_data = _make_plan_data()
+    lib = _make_exercise_library()
+
+    resp1 = ToolUseResponse(
+        content=[],
+        tool_calls=[ToolCall(id="t1", name="swap_exercise", input={
+            "day_number": 1, "exercise_name": "Barbell Bench Press",
+            "replacement_name": "Dumbbell Fly", "sets": 3, "reps": 12,
+            "reason": "knee-friendly",
+        })],
+        text="",
+        stop_reason="tool_calls",  # OpenAI format
+        input_tokens=100, output_tokens=80,
+    )
+    resp2 = ToolUseResponse(
+        content=[], tool_calls=[], text="Done! Swapped to Dumbbell Fly.",
+        stop_reason="stop", input_tokens=120, output_tokens=40,
+    )
+    adapter.tool_use = AsyncMock(side_effect=[resp1, resp2])
+
+    changes, reply, responses = await refiner.refine_agentic(
+        system_prompt="Coach",
+        user_message="Swap bench for something",
+        history=[], plan_data=plan_data, exercise_library=lib,
+    )
+
+    assert len(changes) == 1
+    assert changes[0].after["exercise_name"] == "Dumbbell Fly"
+    assert reply == "Done! Swapped to Dumbbell Fly."
+    assert adapter.tool_use.call_count == 2
+
+
+@pytest.mark.asyncio
 async def test_refine_agentic_max_iterations():
     adapter = MagicMock()
     prompt_manager = MagicMock()
