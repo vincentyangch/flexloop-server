@@ -26,6 +26,8 @@ def hash_password(password: str) -> str:
 
 
 def verify_password(password: str, password_hash: str) -> bool:
+    """Return True if password matches the bcrypt hash. Returns False (not raises)
+    if the hash format is invalid/truncated."""
     try:
         return bcrypt.checkpw(password.encode("utf-8"), password_hash.encode("utf-8"))
     except ValueError:
@@ -70,7 +72,7 @@ async def lookup_session(db: AsyncSession, token: str) -> AdminSession | None:
     if session.expires_at < now:
         return None
 
-    # Verify the associated user is still active
+    # Verify the associated user is still active (not deleted or deactivated).
     user_result = await db.execute(
         select(AdminUser).where(AdminUser.id == session.admin_user_id)
     )
@@ -117,10 +119,7 @@ async def require_admin(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="session expired"
         )
+    # lookup_session already verified the user exists and is_active, so a
+    # single fetch is safe — no need to re-check.
     result = await db.execute(select(AdminUser).where(AdminUser.id == session.admin_user_id))
-    user = result.scalar_one_or_none()
-    if user is None or not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="user inactive"
-        )
-    return user
+    return result.scalar_one()

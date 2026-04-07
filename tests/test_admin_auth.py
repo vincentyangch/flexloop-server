@@ -1,9 +1,23 @@
-import pytest
+import asyncio
 from datetime import datetime, timedelta
+
+import pytest
 from sqlalchemy import select
 
-from flexloop.models.admin_user import AdminUser
+from flexloop.admin.auth import (
+    create_session,
+    hash_password,
+    lookup_session,
+    require_admin,
+    revoke_all_sessions,
+    revoke_session,
+    verify_password,
+)
+from flexloop.models.admin_audit_log import AdminAuditLog
 from flexloop.models.admin_session import AdminSession
+from flexloop.models.admin_user import AdminUser
+from flexloop.models.app_settings import AppSettings
+from flexloop.models.model_pricing import ModelPricing
 
 
 async def test_admin_user_can_be_created(db_session):
@@ -43,11 +57,6 @@ async def test_admin_session_can_be_created(db_session):
     assert loaded.created_at is not None
     assert loaded.last_seen_at is not None
     assert loaded.expires_at > datetime.utcnow()
-
-
-from flexloop.models.admin_audit_log import AdminAuditLog
-from flexloop.models.app_settings import AppSettings
-from flexloop.models.model_pricing import ModelPricing
 
 
 async def test_admin_audit_log_can_be_created(db_session):
@@ -94,16 +103,6 @@ async def test_model_pricing_can_be_created(db_session):
     assert row.model_name == "custom-proxy-model"
 
 
-from flexloop.admin.auth import (
-    hash_password,
-    verify_password,
-    create_session,
-    lookup_session,
-    revoke_session,
-    require_admin,
-)
-
-
 def test_hash_and_verify_password_roundtrip():
     h = hash_password("correct horse battery staple")
     assert verify_password("correct horse battery staple", h) is True
@@ -139,8 +138,26 @@ async def test_revoke_session(db_session):
     assert await lookup_session(db_session, token) is None
 
 
+async def test_revoke_all_sessions(db_session):
+    user = AdminUser(username="revokeall", password_hash=hash_password("pw"))
+    db_session.add(user)
+    await db_session.flush()
+
+    # Create 3 sessions for this user
+    token1 = await create_session(db_session, admin_user_id=user.id)
+    token2 = await create_session(db_session, admin_user_id=user.id)
+    token3 = await create_session(db_session, admin_user_id=user.id)
+
+    count = await revoke_all_sessions(db_session, admin_user_id=user.id)
+    assert count == 3
+
+    # All three should be gone
+    assert await lookup_session(db_session, token1) is None
+    assert await lookup_session(db_session, token2) is None
+    assert await lookup_session(db_session, token3) is None
+
+
 async def test_lookup_session_rejects_expired(db_session):
-    from datetime import datetime, timedelta
     user = AdminUser(username="authu3", password_hash=hash_password("pw"))
     db_session.add(user)
     await db_session.flush()
@@ -158,7 +175,6 @@ async def test_lookup_session_rejects_expired(db_session):
 
 
 async def test_lookup_session_bumps_last_seen_and_expiry(db_session):
-    from datetime import datetime, timedelta
     user = AdminUser(username="authu4", password_hash=hash_password("pw"))
     db_session.add(user)
     await db_session.flush()
@@ -170,7 +186,6 @@ async def test_lookup_session_bumps_last_seen_and_expiry(db_session):
     original_last_seen = before.last_seen_at
 
     # Wait a moment then look up again
-    import asyncio
     await asyncio.sleep(0.01)
     await lookup_session(db_session, token)
 
