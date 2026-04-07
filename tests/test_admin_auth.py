@@ -92,3 +92,89 @@ async def test_model_pricing_can_be_created(db_session):
     db_session.add(row)
     await db_session.flush()
     assert row.model_name == "custom-proxy-model"
+
+
+from flexloop.admin.auth import (
+    hash_password,
+    verify_password,
+    create_session,
+    lookup_session,
+    revoke_session,
+    require_admin,
+)
+
+
+def test_hash_and_verify_password_roundtrip():
+    h = hash_password("correct horse battery staple")
+    assert verify_password("correct horse battery staple", h) is True
+    assert verify_password("wrong password", h) is False
+
+
+async def test_create_and_lookup_session(db_session):
+    user = AdminUser(username="authu1", password_hash=hash_password("pw"))
+    db_session.add(user)
+    await db_session.flush()
+
+    token = await create_session(db_session, admin_user_id=user.id, user_agent="test-ua", ip="127.0.0.1")
+    assert isinstance(token, str)
+    assert len(token) == 64  # 32 bytes hex
+
+    loaded = await lookup_session(db_session, token)
+    assert loaded is not None
+    assert loaded.admin_user_id == user.id
+    assert loaded.user_agent == "test-ua"
+
+
+async def test_lookup_session_returns_none_for_unknown_token(db_session):
+    assert await lookup_session(db_session, "nonexistent") is None
+
+
+async def test_revoke_session(db_session):
+    user = AdminUser(username="authu2", password_hash=hash_password("pw"))
+    db_session.add(user)
+    await db_session.flush()
+    token = await create_session(db_session, admin_user_id=user.id)
+
+    await revoke_session(db_session, token)
+    assert await lookup_session(db_session, token) is None
+
+
+async def test_lookup_session_rejects_expired(db_session):
+    from datetime import datetime, timedelta
+    user = AdminUser(username="authu3", password_hash=hash_password("pw"))
+    db_session.add(user)
+    await db_session.flush()
+
+    # Manually create an expired session
+    sess = AdminSession(
+        id="expired_token",
+        admin_user_id=user.id,
+        expires_at=datetime.utcnow() - timedelta(seconds=1),
+    )
+    db_session.add(sess)
+    await db_session.flush()
+
+    assert await lookup_session(db_session, "expired_token") is None
+
+
+async def test_lookup_session_bumps_last_seen_and_expiry(db_session):
+    from datetime import datetime, timedelta
+    user = AdminUser(username="authu4", password_hash=hash_password("pw"))
+    db_session.add(user)
+    await db_session.flush()
+    token = await create_session(db_session, admin_user_id=user.id)
+
+    result = await db_session.execute(select(AdminSession).where(AdminSession.id == token))
+    before = result.scalar_one()
+    original_expiry = before.expires_at
+    original_last_seen = before.last_seen_at
+
+    # Wait a moment then look up again
+    import asyncio
+    await asyncio.sleep(0.01)
+    await lookup_session(db_session, token)
+
+    result = await db_session.execute(select(AdminSession).where(AdminSession.id == token))
+    after = result.scalar_one()
+    assert after.last_seen_at > original_last_seen
+    assert after.expires_at > original_expiry
