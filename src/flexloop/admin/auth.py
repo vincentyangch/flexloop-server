@@ -39,22 +39,23 @@ async def create_session(
     admin_user_id: int,
     user_agent: str | None = None,
     ip: str | None = None,
-) -> str:
-    """Create a new session row. Returns the opaque token to set as the cookie value."""
+) -> tuple[str, datetime]:
+    """Create a new session row. Returns (token, expires_at)."""
     token = secrets.token_hex(32)  # 64 hex chars
     now = datetime.utcnow()
+    expires_at = now + SESSION_DURATION
     session = AdminSession(
         id=token,
         admin_user_id=admin_user_id,
         created_at=now,
         last_seen_at=now,
-        expires_at=now + SESSION_DURATION,
+        expires_at=expires_at,
         user_agent=user_agent,
         ip_address=ip,
     )
     db.add(session)
     await db.flush()
-    return token
+    return token, expires_at
 
 
 async def lookup_session(db: AsyncSession, token: str) -> AdminSession | None:
@@ -107,6 +108,9 @@ async def require_admin(
 ) -> AdminUser:
     """FastAPI dependency that enforces an active admin session.
 
+    Stashes the active AdminSession on `request.state.admin_session` so that
+    handlers can access it without a duplicate query.
+
     Used by every admin endpoint except /api/admin/auth/login.
     """
     token = request.cookies.get(SESSION_COOKIE_NAME)
@@ -122,4 +126,7 @@ async def require_admin(
     # lookup_session already verified the user exists and is_active, so a
     # single fetch is safe — no need to re-check.
     result = await db.execute(select(AdminUser).where(AdminUser.id == session.admin_user_id))
-    return result.scalar_one()
+    user = result.scalar_one()
+    # Stash the session for downstream handlers (e.g. /me needs expires_at).
+    request.state.admin_session = session
+    return user

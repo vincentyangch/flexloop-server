@@ -115,7 +115,7 @@ async def test_create_and_lookup_session(db_session):
     db_session.add(user)
     await db_session.flush()
 
-    token = await create_session(db_session, admin_user_id=user.id, user_agent="test-ua", ip="127.0.0.1")
+    token, _ = await create_session(db_session, admin_user_id=user.id, user_agent="test-ua", ip="127.0.0.1")
     assert isinstance(token, str)
     assert len(token) == 64  # 32 bytes hex
 
@@ -133,7 +133,7 @@ async def test_revoke_session(db_session):
     user = AdminUser(username="authu2", password_hash=hash_password("pw"))
     db_session.add(user)
     await db_session.flush()
-    token = await create_session(db_session, admin_user_id=user.id)
+    token, _ = await create_session(db_session, admin_user_id=user.id)
 
     await revoke_session(db_session, token)
     assert await lookup_session(db_session, token) is None
@@ -145,9 +145,9 @@ async def test_revoke_all_sessions(db_session):
     await db_session.flush()
 
     # Create 3 sessions for this user
-    token1 = await create_session(db_session, admin_user_id=user.id)
-    token2 = await create_session(db_session, admin_user_id=user.id)
-    token3 = await create_session(db_session, admin_user_id=user.id)
+    token1, _ = await create_session(db_session, admin_user_id=user.id)
+    token2, _ = await create_session(db_session, admin_user_id=user.id)
+    token3, _ = await create_session(db_session, admin_user_id=user.id)
 
     count = await revoke_all_sessions(db_session, admin_user_id=user.id)
     assert count == 3
@@ -179,7 +179,7 @@ async def test_lookup_session_bumps_last_seen_and_expiry(db_session):
     user = AdminUser(username="authu4", password_hash=hash_password("pw"))
     db_session.add(user)
     await db_session.flush()
-    token = await create_session(db_session, admin_user_id=user.id)
+    token, _ = await create_session(db_session, admin_user_id=user.id)
 
     result = await db_session.execute(select(AdminSession).where(AdminSession.id == token))
     before = result.scalar_one()

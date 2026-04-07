@@ -3,7 +3,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from flexloop.admin.auth import (
@@ -66,7 +66,12 @@ def _set_session_cookie(response: Response, token: str) -> None:
 
 
 def _clear_session_cookie(response: Response) -> None:
-    response.delete_cookie(key=SESSION_COOKIE_NAME, path="/")
+    response.delete_cookie(
+        key=SESSION_COOKIE_NAME,
+        path="/",
+        secure=True,
+        samesite="strict",
+    )
 
 
 @router.post("/login", response_model=LoginResponse)
@@ -82,7 +87,7 @@ async def login(
         # Generic error message — do not reveal whether the user exists
         raise HTTPException(status_code=401, detail="invalid credentials")
 
-    token = await create_session(
+    token, expires_at = await create_session(
         db,
         admin_user_id=user.id,
         user_agent=request.headers.get("user-agent"),
@@ -95,7 +100,7 @@ async def login(
     return LoginResponse(
         ok=True,
         username=user.username,
-        expires_at=datetime.utcnow() + SESSION_DURATION,
+        expires_at=expires_at,  # use the authoritative value from create_session
     )
 
 
@@ -116,17 +121,15 @@ async def logout(
 @router.get("/me", response_model=MeResponse)
 async def me(
     request: Request,
-    db: AsyncSession = Depends(get_session),
     user: AdminUser = Depends(require_admin),
 ):
-    token = request.cookies.get(SESSION_COOKIE_NAME)
-    result = await db.execute(select(AdminSession).where(AdminSession.id == token))
-    session = result.scalar_one()
+    session = request.state.admin_session
     return MeResponse(username=user.username, expires_at=session.expires_at)
 
 
 @router.post("/change-password")
 async def change_password(
+    request: Request,
     data: ChangePasswordRequest,
     db: AsyncSession = Depends(get_session),
     user: AdminUser = Depends(require_admin),
@@ -134,6 +137,18 @@ async def change_password(
     if not verify_password(data.current_password, user.password_hash):
         raise HTTPException(status_code=400, detail="current password incorrect")
     user.password_hash = hash_password(data.new_password)
+
+    # Revoke all OTHER sessions for this admin (keeps the current session alive
+    # so the user isn't logged out of their active browser; but kicks any
+    # attacker who had stolen a different session).
+    current_token = request.cookies.get(SESSION_COOKIE_NAME)
+    await db.execute(
+        delete(AdminSession).where(
+            AdminSession.admin_user_id == user.id,
+            AdminSession.id != current_token,
+        )
+    )
+
     await db.commit()
     return {"ok": True}
 
