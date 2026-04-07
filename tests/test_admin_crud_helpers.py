@@ -5,8 +5,9 @@ import pytest
 from fastapi import HTTPException
 from sqlalchemy import Column, Integer, String
 from sqlalchemy.orm import DeclarativeBase
+from starlette.datastructures import QueryParams
 
-from flexloop.admin.crud import parse_sort_spec
+from flexloop.admin.crud import parse_filter_params, parse_sort_spec
 
 
 class _FakeBase(DeclarativeBase):
@@ -68,3 +69,36 @@ class TestParseSortSpec:
     def test_direction_case_insensitive(self) -> None:
         clauses = parse_sort_spec("name:DESC", model=_FakeModel, allowed={"name"})
         assert "desc" in str(clauses[0]).lower()
+
+
+class TestParseFilterParams:
+    def test_extracts_filter_brackets(self) -> None:
+        qp = QueryParams("filter[user_id]=4&filter[type]=weight&page=1")
+        result = parse_filter_params(qp, allowed={"user_id", "type"})
+        assert result == {"user_id": "4", "type": "weight"}
+
+    def test_ignores_non_filter_params(self) -> None:
+        qp = QueryParams("page=1&per_page=50&sort=name:asc")
+        result = parse_filter_params(qp, allowed={"user_id"})
+        assert result == {}
+
+    def test_unknown_filter_key_raises_400(self) -> None:
+        qp = QueryParams("filter[secret]=1")
+        with pytest.raises(HTTPException) as exc:
+            parse_filter_params(qp, allowed={"user_id"})
+        assert exc.value.status_code == 400
+        assert "secret" in exc.value.detail.lower()
+
+    def test_empty_allowed_rejects_all(self) -> None:
+        qp = QueryParams("filter[anything]=x")
+        with pytest.raises(HTTPException):
+            parse_filter_params(qp, allowed=set())
+
+    def test_empty_query_returns_empty_dict(self) -> None:
+        qp = QueryParams("")
+        assert parse_filter_params(qp, allowed={"user_id"}) == {}
+
+    def test_malformed_key_ignored(self) -> None:
+        """filter_without_brackets=1 is not a 'filter[...]' param."""
+        qp = QueryParams("filter_user_id=4")
+        assert parse_filter_params(qp, allowed={"user_id"}) == {}
