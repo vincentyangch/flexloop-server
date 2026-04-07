@@ -222,3 +222,81 @@ async def test_reset_admin_password(db_session):
 async def test_reset_admin_password_rejects_unknown(db_session):
     with pytest.raises(ValueError, match="not found"):
         await reset_admin_password(db_session, "nobody", "pw123456")
+
+
+# ---- CSRF middleware tests ----
+from fastapi import FastAPI
+from httpx import ASGITransport, AsyncClient
+from flexloop.admin.csrf import OriginCheckMiddleware
+
+ALLOWED = ["http://localhost:5173", "http://localhost:8000"]
+
+
+async def _build_csrf_test_app() -> FastAPI:
+    a = FastAPI()
+    a.add_middleware(OriginCheckMiddleware, allowed_origins_getter=lambda: ALLOWED)
+
+    @a.get("/api/admin/test")
+    async def get_handler():
+        return {"ok": True}
+
+    @a.post("/api/admin/test")
+    async def post_handler():
+        return {"ok": True}
+
+    @a.post("/api/admin/auth/login")
+    async def login_handler():
+        return {"ok": True}
+
+    @a.get("/api/something-else")
+    async def other_handler():
+        return {"ok": True}
+
+    return a
+
+
+async def test_csrf_get_requests_bypass_origin_check():
+    a = await _build_csrf_test_app()
+    async with AsyncClient(transport=ASGITransport(app=a), base_url="http://test") as c:
+        r = await c.get("/api/admin/test")
+        assert r.status_code == 200
+
+
+async def test_csrf_post_with_allowed_origin_succeeds():
+    a = await _build_csrf_test_app()
+    async with AsyncClient(transport=ASGITransport(app=a), base_url="http://test") as c:
+        r = await c.post("/api/admin/test", headers={"Origin": "http://localhost:5173"})
+        assert r.status_code == 200
+
+
+async def test_csrf_post_with_disallowed_origin_fails():
+    a = await _build_csrf_test_app()
+    async with AsyncClient(transport=ASGITransport(app=a), base_url="http://test") as c:
+        r = await c.post("/api/admin/test", headers={"Origin": "http://evil.example.com"})
+        assert r.status_code == 403
+
+
+async def test_csrf_post_without_origin_fails():
+    a = await _build_csrf_test_app()
+    async with AsyncClient(transport=ASGITransport(app=a), base_url="http://test") as c:
+        r = await c.post("/api/admin/test")
+        assert r.status_code == 403
+
+
+async def test_csrf_non_admin_routes_bypass_origin_check():
+    a = await _build_csrf_test_app()
+    async with AsyncClient(transport=ASGITransport(app=a), base_url="http://test") as c:
+        r = await c.get("/api/something-else")
+        assert r.status_code == 200
+
+
+async def test_csrf_login_endpoint_is_exempt():
+    """Login is exempt from CSRF since it's unauthenticated — no existing auth to exploit."""
+    a = await _build_csrf_test_app()
+    async with AsyncClient(transport=ASGITransport(app=a), base_url="http://test") as c:
+        # Without Origin header — should still succeed
+        r = await c.post("/api/admin/auth/login")
+        assert r.status_code == 200
+        # With a disallowed Origin — should also succeed (login is always exempt)
+        r = await c.post("/api/admin/auth/login", headers={"Origin": "http://evil.example.com"})
+        assert r.status_code == 200
