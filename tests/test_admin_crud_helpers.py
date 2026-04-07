@@ -102,3 +102,95 @@ class TestParseFilterParams:
         """filter_without_brackets=1 is not a 'filter[...]' param."""
         qp = QueryParams("filter_user_id=4")
         assert parse_filter_params(qp, allowed={"user_id"}) == {}
+
+
+from pydantic import BaseModel, ConfigDict
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from flexloop.admin.crud import paginated_response
+from flexloop.models.user import User
+
+
+# Inline test schema — keeps this task independent of any resource-level
+# schemas defined in later tasks. We only validate the couple of fields
+# we assert on.
+class _RowSchemaForTests(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+
+
+class TestPaginatedResponse:
+    async def test_empty_table(self, db_session: AsyncSession) -> None:
+        query = select(User)
+        result = await paginated_response(
+            db_session,
+            query=query,
+            item_schema=_RowSchemaForTests,
+            page=1,
+            per_page=50,
+        )
+        assert result == {
+            "items": [],
+            "total": 0,
+            "page": 1,
+            "per_page": 50,
+            "total_pages": 0,
+        }
+
+    async def test_first_page_partial(self, db_session: AsyncSession) -> None:
+        for i in range(3):
+            db_session.add(User(
+                name=f"U{i}", gender="other", age=30, height=180, weight=80,
+                weight_unit="kg", height_unit="cm", experience_level="intermediate",
+                goals="stay fit", available_equipment=[],
+            ))
+        await db_session.commit()
+
+        query = select(User).order_by(User.id)
+        result = await paginated_response(
+            db_session, query=query, item_schema=_RowSchemaForTests, page=1, per_page=50,
+        )
+        assert result["total"] == 3
+        assert result["page"] == 1
+        assert result["per_page"] == 50
+        assert result["total_pages"] == 1
+        assert len(result["items"]) == 3
+        assert result["items"][0].name == "U0"
+
+    async def test_second_page(self, db_session: AsyncSession) -> None:
+        for i in range(5):
+            db_session.add(User(
+                name=f"U{i}", gender="other", age=30, height=180, weight=80,
+                weight_unit="kg", height_unit="cm", experience_level="intermediate",
+                goals="stay fit", available_equipment=[],
+            ))
+        await db_session.commit()
+
+        query = select(User).order_by(User.id)
+        result = await paginated_response(
+            db_session, query=query, item_schema=_RowSchemaForTests, page=2, per_page=2,
+        )
+        assert result["total"] == 5
+        assert result["page"] == 2
+        assert result["per_page"] == 2
+        assert result["total_pages"] == 3
+        assert len(result["items"]) == 2
+        assert result["items"][0].name == "U2"
+        assert result["items"][1].name == "U3"
+
+    async def test_page_out_of_range_returns_empty_items(self, db_session: AsyncSession) -> None:
+        db_session.add(User(
+            name="only", gender="other", age=30, height=180, weight=80,
+            weight_unit="kg", height_unit="cm", experience_level="intermediate",
+            goals="stay fit", available_equipment=[],
+        ))
+        await db_session.commit()
+
+        query = select(User)
+        result = await paginated_response(
+            db_session, query=query, item_schema=_RowSchemaForTests, page=99, per_page=10,
+        )
+        assert result["total"] == 1
+        assert result["items"] == []
