@@ -13,6 +13,7 @@ from flexloop.admin.auth import (
     revoke_session,
     verify_password,
 )
+from flexloop.admin.bootstrap import create_admin_user, reset_admin_password
 from flexloop.models.admin_audit_log import AdminAuditLog
 from flexloop.models.admin_session import AdminSession
 from flexloop.models.admin_user import AdminUser
@@ -193,3 +194,31 @@ async def test_lookup_session_bumps_last_seen_and_expiry(db_session):
     after = result.scalar_one()
     assert after.last_seen_at > original_last_seen
     assert after.expires_at > original_expiry
+
+
+async def test_create_admin_user(db_session):
+    user = await create_admin_user(db_session, "newadmin", "mypassword123")
+    assert user.id is not None
+    assert user.username == "newadmin"
+    assert verify_password("mypassword123", user.password_hash)
+
+
+async def test_create_admin_user_rejects_duplicate(db_session):
+    await create_admin_user(db_session, "dup", "pw123456")
+    with pytest.raises(ValueError, match="already exists"):
+        await create_admin_user(db_session, "dup", "pw789012")
+
+
+async def test_reset_admin_password(db_session):
+    await create_admin_user(db_session, "resetme", "oldpw1234")
+    await reset_admin_password(db_session, "resetme", "newpw5678")
+
+    result = await db_session.execute(select(AdminUser).where(AdminUser.username == "resetme"))
+    user = result.scalar_one()
+    assert verify_password("newpw5678", user.password_hash)
+    assert not verify_password("oldpw1234", user.password_hash)
+
+
+async def test_reset_admin_password_rejects_unknown(db_session):
+    with pytest.raises(ValueError, match="not found"):
+        await reset_admin_password(db_session, "nobody", "pw123456")
