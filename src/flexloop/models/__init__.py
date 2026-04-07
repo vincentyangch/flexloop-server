@@ -1,3 +1,4 @@
+from flexloop.models.admin_user import AdminUser
 from flexloop.models.ai import AIChatMessage, AIReview, AIUsage
 from flexloop.models.backup import Backup
 from flexloop.models.cycle_tracker import CycleTracker
@@ -12,6 +13,7 @@ from flexloop.models.volume_landmark import VolumeLandmark
 from flexloop.models.workout import SessionFeedback, WorkoutSession, WorkoutSet
 
 __all__ = [
+    "AdminUser",
     "AIChatMessage", "AIReview", "AIUsage",
     "Backup", "CycleTracker", "Exercise", "ExerciseGroup",
     "Measurement", "Notification", "PersonalRecord",
