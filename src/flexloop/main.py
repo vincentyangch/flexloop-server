@@ -9,8 +9,11 @@ logging.getLogger().addHandler(admin_ring_buffer)
 logging.getLogger().setLevel(logging.INFO)
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from flexloop.admin.csrf import OriginCheckMiddleware
 from flexloop.admin.routers.auth import router as admin_auth_router
@@ -75,3 +78,31 @@ app.include_router(admin_health_router)
 @app.get("/api/health")
 async def health_check():
     return {"status": "ok", "version": "1.0.0"}
+
+
+# Mount the built admin SPA bundle at /admin/*.
+# In dev, you'd run `npm run dev` separately and the Vite dev server proxies
+# to this FastAPI process. In prod, the bundle is prebuilt into static/admin.
+_STATIC_ADMIN = Path(__file__).parent / "static" / "admin"
+_ADMIN_INDEX = _STATIC_ADMIN / "index.html"
+
+if _STATIC_ADMIN.exists():
+    # Serve built assets (JS, CSS, images, fonts) at /admin/assets/...
+    app.mount(
+        "/admin/assets",
+        StaticFiles(directory=_STATIC_ADMIN / "assets"),
+        name="admin_assets",
+    )
+
+    @app.get("/admin")
+    async def admin_root():
+        if not _ADMIN_INDEX.exists():
+            raise HTTPException(status_code=404, detail="admin UI not built")
+        return FileResponse(_ADMIN_INDEX)
+
+    @app.get("/admin/{path:path}")
+    async def admin_spa_fallback(path: str):
+        """Serve index.html for any /admin/* path (SPA client-side routing)."""
+        if not _ADMIN_INDEX.exists():
+            raise HTTPException(status_code=404, detail="admin UI not built")
+        return FileResponse(_ADMIN_INDEX)
