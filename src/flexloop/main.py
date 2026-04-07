@@ -1,3 +1,13 @@
+# Install the admin ring-buffer log handler BEFORE any flexloop imports so
+# that early-startup log records (model registration, DB init, router import
+# side effects) flow into the buffer. Only stdlib imports may appear above.
+import logging
+
+from flexloop.admin.log_handler import admin_ring_buffer
+
+logging.getLogger().addHandler(admin_ring_buffer)
+logging.getLogger().setLevel(logging.INFO)
+
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
