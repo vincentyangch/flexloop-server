@@ -76,22 +76,59 @@ class OpenAIAdapter(LLMAdapter):
         content = str(response)
         return LLMResponse(content=content, input_tokens=0, output_tokens=0)
 
+    async def _stream_chat_completion(
+        self, messages: list[dict], temperature: float, max_tokens: int,
+    ) -> LLMResponse:
+        """Stream a Chat Completions request and aggregate content + usage.
+
+        Streaming is used instead of a single non-streaming call because some
+        OpenAI-compatible proxies (e.g. ice.v.ua) strip `message.content` from
+        non-streaming responses while still returning deltas correctly when
+        streaming is enabled. The behavior is equivalent against the official
+        OpenAI API.
+        """
+        stream = await self.client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            stream=True,
+            stream_options={"include_usage": True},
+        )
+
+        content = ""
+        input_tokens = 0
+        output_tokens = 0
+        cache_read = 0
+        async for chunk in stream:
+            if chunk.choices:
+                delta = chunk.choices[0].delta
+                if delta and delta.content:
+                    content += delta.content
+            if chunk.usage:
+                input_tokens = chunk.usage.prompt_tokens or 0
+                output_tokens = chunk.usage.completion_tokens or 0
+                details = getattr(chunk.usage, "prompt_tokens_details", None)
+                if details:
+                    cache_read = getattr(details, "cached_tokens", 0) or 0
+
+        return LLMResponse(
+            content=content,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cache_read_tokens=cache_read,
+        )
+
     async def generate(
         self, system_prompt: str, user_prompt: str, temperature: float = 0.7,
         max_tokens: int = 2000,
     ) -> LLMResponse:
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
         try:
-            # Try Chat Completions API first
-            response = await self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                temperature=temperature,
-                max_tokens=max_tokens,
-            )
-            return self._parse_response(response)
+            return await self._stream_chat_completion(messages, temperature, max_tokens)
         except Exception as e:
             logger.warning(f"Chat Completions API failed: {e}. Trying Responses API.")
             # Fallback to Responses API
@@ -112,13 +149,7 @@ class OpenAIAdapter(LLMAdapter):
         self, messages: list[dict], temperature: float = 0.7, max_tokens: int = 2000,
     ) -> LLMResponse:
         try:
-            response = await self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-            )
-            return self._parse_response(response)
+            return await self._stream_chat_completion(messages, temperature, max_tokens)
         except Exception as e:
             logger.warning(f"Chat Completions API failed: {e}. Trying Responses API.")
             # Extract system and user messages for Responses API
