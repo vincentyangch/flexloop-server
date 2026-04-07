@@ -2,6 +2,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from flexloop.admin.csrf import OriginCheckMiddleware
+from flexloop.admin.routers.auth import router as admin_auth_router
 from flexloop.db.engine import init_db
 from flexloop.routers.ai import router as ai_router
 from flexloop.routers.backup import router as backup_router
@@ -32,6 +34,15 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Add CSRF middleware BEFORE routers so it runs on every /api/admin/* request.
+# For Phase 1: fixed allowed-origins list. Phase 4 will replace this callable
+# with one that reads from app_settings.admin_allowed_origins.
+_PHASE1_ALLOWED_ORIGINS = ["http://localhost:5173", "http://localhost:8000"]
+app.add_middleware(
+    OriginCheckMiddleware,
+    allowed_origins_getter=lambda: _PHASE1_ALLOWED_ORIGINS,
+)
+
 app.include_router(profiles_router)
 app.include_router(exercises_router)
 app.include_router(workouts_router)
@@ -46,6 +57,7 @@ app.include_router(prs_router)
 app.include_router(progress_router)
 app.include_router(warmup_router)
 app.include_router(deload_router)
+app.include_router(admin_auth_router)
 
 
 @app.get("/api/health")

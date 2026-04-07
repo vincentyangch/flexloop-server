@@ -300,3 +300,140 @@ async def test_csrf_login_endpoint_is_exempt():
         # With a disallowed Origin — should also succeed (login is always exempt)
         r = await c.post("/api/admin/auth/login", headers={"Origin": "http://evil.example.com"})
         assert r.status_code == 200
+
+
+# ---- Auth router integration tests ----
+
+@pytest.fixture
+async def seeded_admin(db_session):
+    """Create a test admin user. Returns (user, plaintext_password)."""
+    password = "testpw12345"
+    user = await create_admin_user(db_session, "routertest", password)
+    await db_session.commit()
+    return user, password
+
+
+async def test_login_success(client, seeded_admin):
+    user, password = seeded_admin
+    r = await client.post(
+        "/api/admin/auth/login",
+        json={"username": user.username, "password": password},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["ok"] is True
+    assert body["username"] == user.username
+    assert "expires_at" in body
+    # Cookie should be set
+    assert "flexloop_admin_session" in r.cookies
+
+
+async def test_login_wrong_password(client, seeded_admin):
+    user, _ = seeded_admin
+    r = await client.post(
+        "/api/admin/auth/login",
+        json={"username": user.username, "password": "wrongpw"},
+    )
+    assert r.status_code == 401
+
+
+async def test_login_unknown_user(client):
+    r = await client.post(
+        "/api/admin/auth/login",
+        json={"username": "ghost", "password": "anything12"},
+    )
+    assert r.status_code == 401
+
+
+async def test_me_without_cookie(client):
+    r = await client.get("/api/admin/auth/me")
+    assert r.status_code == 401
+
+
+async def test_login_then_me(client, seeded_admin):
+    user, password = seeded_admin
+    login = await client.post(
+        "/api/admin/auth/login",
+        json={"username": user.username, "password": password},
+    )
+    assert login.status_code == 200
+
+    me = await client.get("/api/admin/auth/me")
+    assert me.status_code == 200
+    assert me.json()["username"] == user.username
+
+
+async def test_logout_clears_session(client, seeded_admin):
+    user, password = seeded_admin
+    await client.post(
+        "/api/admin/auth/login",
+        json={"username": user.username, "password": password},
+    )
+    # Logout is a state-changing request, needs Origin header
+    r = await client.post(
+        "/api/admin/auth/logout",
+        headers={"Origin": "http://localhost:5173"},
+    )
+    assert r.status_code == 200
+
+    me = await client.get("/api/admin/auth/me")
+    assert me.status_code == 401
+
+
+async def test_change_password_success(client, seeded_admin):
+    user, password = seeded_admin
+    await client.post(
+        "/api/admin/auth/login",
+        json={"username": user.username, "password": password},
+    )
+    r = await client.post(
+        "/api/admin/auth/change-password",
+        json={"current_password": password, "new_password": "newpw67890"},
+        headers={"Origin": "http://localhost:5173"},
+    )
+    assert r.status_code == 200
+
+    # Old password no longer works
+    r2 = await client.post(
+        "/api/admin/auth/login",
+        json={"username": user.username, "password": password},
+    )
+    assert r2.status_code == 401
+
+
+async def test_change_password_wrong_current(client, seeded_admin):
+    user, password = seeded_admin
+    await client.post(
+        "/api/admin/auth/login",
+        json={"username": user.username, "password": password},
+    )
+    r = await client.post(
+        "/api/admin/auth/change-password",
+        json={"current_password": "wrongwrongwrong", "new_password": "newpw67890"},
+        headers={"Origin": "http://localhost:5173"},
+    )
+    assert r.status_code == 400
+
+
+async def test_list_and_revoke_sessions(client, seeded_admin):
+    user, password = seeded_admin
+    await client.post(
+        "/api/admin/auth/login",
+        json={"username": user.username, "password": password},
+    )
+    r = await client.get("/api/admin/auth/sessions")
+    assert r.status_code == 200
+    sessions = r.json()
+    assert len(sessions) == 1
+    sess_id = sessions[0]["id"]
+
+    # Revoke it
+    r2 = await client.delete(
+        f"/api/admin/auth/sessions/{sess_id}",
+        headers={"Origin": "http://localhost:5173"},
+    )
+    assert r2.status_code == 200
+
+    # me should now be 401
+    me = await client.get("/api/admin/auth/me")
+    assert me.status_code == 401
