@@ -6,6 +6,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from flexloop.db.base import Base
+import flexloop.models  # noqa: F401 — register all models with Base.metadata
 
 config = context.config
 if config.config_file_name is not None:
