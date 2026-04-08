@@ -50,7 +50,7 @@ const groups: Group[] = [
     label: "User Data",
     items: [
       { label: "Users", to: "/users", icon: Users },
-      { label: "Plans", to: "/plans", icon: ClipboardList, disabled: true },
+      { label: "Plans", to: "/plans", icon: ClipboardList },
       { label: "Workouts", to: "/workouts", icon: Dumbbell },
       { label: "Measurements", to: "/measurements", icon: Ruler },
       { label: "Personal Records", to: "/prs", icon: Trophy },
