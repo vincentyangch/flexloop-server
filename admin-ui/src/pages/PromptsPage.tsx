@@ -13,6 +13,7 @@ import { markdown } from "@codemirror/lang-markdown";
 import { oneDark } from "@codemirror/theme-one-dark";
 
 import { PromptTree } from "@/components/prompts/PromptTree";
+import { VariableInspector } from "@/components/prompts/VariableInspector";
 import { api } from "@/lib/api";
 import type { components } from "@/lib/api.types";
 
@@ -96,7 +97,7 @@ export function PromptsPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-[240px_1fr] gap-4 min-h-[60vh]">
+      <div className="grid grid-cols-[240px_1fr_220px] gap-4 min-h-[60vh]">
         {/* Left panel: tree */}
         <div className="border rounded-md p-2 overflow-auto">
           <PromptTree
@@ -143,6 +144,11 @@ export function PromptsPage() {
               </div>
             </>
           )}
+        </div>
+
+        {/* Right sidebar: variables */}
+        <div>
+          {selected && <VariableInspector content={buffer} />}
         </div>
       </div>
     </div>
