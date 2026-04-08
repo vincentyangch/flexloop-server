@@ -107,8 +107,8 @@ export function PromptsPage() {
       api.post<VersionResponse>(`/api/admin/prompts/${name}/versions`, {}),
     onSuccess: (data, variables) => {
       toast.success(`Created ${data.version}`);
-      qc.invalidateQueries({ queryKey: LIST_KEY });
       setSelected({ name: variables.name, version: data.version });
+      qc.invalidateQueries({ queryKey: LIST_KEY });
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Create failed"),
   });

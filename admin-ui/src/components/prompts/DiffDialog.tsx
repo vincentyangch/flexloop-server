@@ -5,7 +5,7 @@
  * Uses the shadcn Dialog primitive (already installed). Diff text renders
  * as a <pre> with per-line CSS coloring: `+` green, `-` red, `@@` gray.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import {
@@ -61,9 +61,17 @@ export function DiffDialog({
 }: Props) {
   // Default to comparing against the version just before the current one
   const otherVersions = availableVersions.filter((v) => v !== currentVersion);
-  const [from, setFrom] = useState<string>(
-    () => otherVersions[0] ?? currentVersion,
-  );
+  const [from, setFrom] = useState<string>("");
+
+  // Sync `from` with `otherVersions` — if `otherVersions` changes (new
+  // version created, user navigates to a different prompt), reset `from`
+  // to the first available option.
+  useEffect(() => {
+    if (otherVersions.length === 0) return;
+    if (!otherVersions.includes(from)) {
+      setFrom(otherVersions[0]);
+    }
+  }, [otherVersions, from]);
 
   const diffQuery = useQuery({
     queryKey: ["admin", "prompts", "diff", name, from, currentVersion],
@@ -71,7 +79,7 @@ export function DiffDialog({
       api.get<DiffResponse>(
         `/api/admin/prompts/${name}/diff?from=${from}&to=${currentVersion}`,
       ),
-    enabled: open && from !== currentVersion,
+    enabled: open && otherVersions.length > 0 && from !== currentVersion,
   });
 
   const lines = useMemo(
@@ -89,24 +97,35 @@ export function DiffDialog({
         </DialogHeader>
         <div className="flex items-center gap-2">
           <span className="text-sm">Compare against:</span>
-          <Select value={from} onValueChange={setFrom}>
-            <SelectTrigger className="w-32">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {otherVersions.map((v) => (
-                <SelectItem key={v} value={v}>
-                  {v}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {otherVersions.length === 0 ? (
+            <span className="text-xs text-muted-foreground">
+              (no other versions)
+            </span>
+          ) : (
+            <Select value={from} onValueChange={setFrom}>
+              <SelectTrigger className="w-32">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {otherVersions.map((v) => (
+                  <SelectItem key={v} value={v}>
+                    {v}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
         <pre className="font-mono text-xs whitespace-pre-wrap max-h-[50vh] overflow-auto bg-muted/30 p-3 rounded">
-          {diffQuery.isLoading && "Loading diff…"}
-          {diffQuery.isError && "Failed to load diff."}
-          {diffQuery.data && lines.map((l, i) => renderDiffLine(l, i))}
-          {!diffQuery.isLoading && lines.length <= 1 && diffQuery.data?.diff === "" && (
+          {otherVersions.length === 0 && (
+            <span className="text-muted-foreground">
+              No other versions to compare against.
+            </span>
+          )}
+          {otherVersions.length > 0 && diffQuery.isLoading && "Loading diff…"}
+          {otherVersions.length > 0 && diffQuery.isError && "Failed to load diff."}
+          {otherVersions.length > 0 && diffQuery.data && lines.map((l, i) => renderDiffLine(l, i))}
+          {otherVersions.length > 0 && !diffQuery.isLoading && lines.length <= 1 && diffQuery.data?.diff === "" && (
             <span className="text-muted-foreground">No differences.</span>
           )}
         </pre>
