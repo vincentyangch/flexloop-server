@@ -6,7 +6,7 @@
  * is marked with a small green dot. Selecting a version calls the
  * ``onSelect`` callback with ``{name, version}``.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import type { components } from "@/lib/api.types";
 
@@ -22,6 +22,19 @@ export function PromptTree({ prompts, selected, onSelect }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(
     () => new Set(selected ? [selected.name] : []),
   );
+
+  // Keep the tree in sync with the parent's selection — when the
+  // selected prompt changes (e.g. auto-select after initial load),
+  // make sure that prompt's versions are visible.
+  useEffect(() => {
+    if (!selected) return;
+    setExpanded((prev) => {
+      if (prev.has(selected.name)) return prev;
+      const next = new Set(prev);
+      next.add(selected.name);
+      return next;
+    });
+  }, [selected?.name]);
 
   const toggle = (name: string) => {
     setExpanded((prev) => {

@@ -6,7 +6,7 @@
  * version's content but the Save / New version / Set active / Diff
  * toolbar actions are added in a later task.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import CodeMirror from "@uiw/react-codemirror";
 import { markdown } from "@codemirror/lang-markdown";
@@ -59,11 +59,19 @@ export function PromptsPage() {
     enabled: selected !== null,
   });
 
-  // Sync the buffer with the loaded version content
+  // Track which version's content is currently loaded into the buffer so
+  // background refetches don't blow away unsaved edits. Keyed on the
+  // identity of the selection, not the query's data reference.
+  const loadedVersionRef = useRef<string | null>(null);
+
   useEffect(() => {
-    if (versionQuery.data) {
-      setBuffer(versionQuery.data.content);
-    }
+    if (!versionQuery.data) return;
+    const key = `${versionQuery.data.name}@${versionQuery.data.version}`;
+    // If we already loaded this exact version, leave the buffer alone —
+    // this is a background refetch and the user may have unsaved edits.
+    if (loadedVersionRef.current === key) return;
+    loadedVersionRef.current = key;
+    setBuffer(versionQuery.data.content);
   }, [versionQuery.data]);
 
   const isDirty = useMemo(
