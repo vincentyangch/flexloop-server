@@ -189,7 +189,16 @@ export function PlanDetailPage() {
         )}
       </div>
 
-      <Dialog open={addDayOpen} onOpenChange={setAddDayOpen}>
+      <Dialog
+        open={addDayOpen}
+        onOpenChange={(o) => {
+          setAddDayOpen(o);
+          if (!o) {
+            setNewDayNumber("");
+            setNewDayLabel("");
+          }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add day</DialogTitle>

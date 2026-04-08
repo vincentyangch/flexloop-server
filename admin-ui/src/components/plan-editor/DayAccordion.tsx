@@ -6,7 +6,7 @@
  * (via the useEffect below), so after a successful save the query
  * invalidation flows the fresh data back in.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { GroupEditor } from "./GroupEditor";
 import {
@@ -62,13 +62,18 @@ type Props = {
 
 export function DayAccordion({ day, isSaving, onSave, onDelete }: Props) {
   const [draft, setDraft] = useState<PlanDayUpdate>(() => dayToDraft(day));
+  const isDirtyRef = useRef(false);
 
   useEffect(() => {
-    setDraft(dayToDraft(day));
+    if (!isDirtyRef.current) {
+      setDraft(dayToDraft(day));
+    }
   }, [day]);
 
-  const patch = (p: Partial<PlanDayUpdate>) =>
+  const patch = (p: Partial<PlanDayUpdate>) => {
+    isDirtyRef.current = true;
     setDraft((d) => ({ ...d, ...p }));
+  };
 
   const updateGroup = (index: number, next: GroupDraft) => {
     patch({
@@ -154,7 +159,17 @@ export function DayAccordion({ day, isSaving, onSave, onDelete }: Props) {
           </Button>
           <Button
             type="button"
-            onClick={() => void onSave(draft)}
+            onClick={() => {
+              void (async () => {
+                try {
+                  await onSave(draft);
+                  isDirtyRef.current = false;
+                  setDraft(dayToDraft(day));
+                } catch {
+                  // retain dirty state on failure; parent surfaces the toast
+                }
+              })();
+            }}
             disabled={isSaving}
           >
             {isSaving ? "Saving…" : "Save day"}
