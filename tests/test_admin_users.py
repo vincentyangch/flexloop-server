@@ -226,3 +226,35 @@ class TestUpdateUser:
         )
         assert res.status_code == 200
         assert res.json()["name"] == "User0"
+
+
+class TestDeleteUser:
+    async def test_requires_auth(self, client: AsyncClient) -> None:
+        res = await client.delete(
+            "/api/admin/users/1",
+            headers={"Origin": "http://localhost:5173"},
+        )
+        assert res.status_code == 401
+
+    async def test_deletes_user(self, client: AsyncClient, db_session: AsyncSession) -> None:
+        cookies = await _make_admin_and_cookie(db_session)
+        users = await _seed_users(db_session, 1)
+        res = await client.delete(
+            f"/api/admin/users/{users[0].id}",
+            cookies=cookies,
+            headers={"Origin": "http://localhost:5173"},
+        )
+        assert res.status_code == 204
+
+        # Confirm gone
+        res2 = await client.get(f"/api/admin/users/{users[0].id}", cookies=cookies)
+        assert res2.status_code == 404
+
+    async def test_404_on_missing(self, client: AsyncClient, db_session: AsyncSession) -> None:
+        cookies = await _make_admin_and_cookie(db_session)
+        res = await client.delete(
+            "/api/admin/users/99999",
+            cookies=cookies,
+            headers={"Origin": "http://localhost:5173"},
+        )
+        assert res.status_code == 404
