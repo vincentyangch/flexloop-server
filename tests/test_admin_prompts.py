@@ -200,3 +200,53 @@ class TestUpdateVersion:
             headers={"Origin": ORIGIN},
         )
         assert res.status_code == 422
+
+
+class TestCreateVersionEndpoint:
+    async def test_requires_auth(
+        self, client: AsyncClient, prompts_tmp_dir: Path
+    ) -> None:
+        res = await client.post(
+            "/api/admin/prompts/plan_generation/versions",
+            json={},
+            headers={"Origin": ORIGIN},
+        )
+        assert res.status_code == 401
+
+    async def test_clones_active_version(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        prompts_tmp_dir: Path,
+    ) -> None:
+        cookies = await _make_admin_and_cookie(db_session)
+        res = await client.post(
+            "/api/admin/prompts/plan_generation/versions",
+            json={},
+            cookies=cookies,
+            headers={"Origin": ORIGIN},
+        )
+        assert res.status_code == 201
+        body = res.json()
+        assert body["version"] == "v3"
+        assert body["content"] == "v2 {{user_name}}"  # cloned from active v2
+        assert body["variables"] == ["user_name"]
+        # File on disk
+        assert (prompts_tmp_dir / "plan_generation" / "v3.md").read_text() == (
+            "v2 {{user_name}}"
+        )
+
+    async def test_404_missing_prompt(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        prompts_tmp_dir: Path,
+    ) -> None:
+        cookies = await _make_admin_and_cookie(db_session)
+        res = await client.post(
+            "/api/admin/prompts/nonexistent/versions",
+            json={},
+            cookies=cookies,
+            headers={"Origin": ORIGIN},
+        )
+        assert res.status_code == 404
