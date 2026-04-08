@@ -17,7 +17,14 @@ const schema = z.object({
   exercise_id: z.coerce.number().int().positive(),
   pr_type: z.string().min(1).max(20),
   value: z.coerce.number(),
-  session_id: z.coerce.number().int().positive().nullable().optional(),
+  // Empty input from <input type="number"> arrives as "" — coerce that to
+  // null before zod validates so the optional path is honored. Without the
+  // preprocess, z.coerce.number() converts "" to 0, which then fails
+  // .positive() and the form silently rejects the submit.
+  session_id: z.preprocess(
+    (v) => (v === "" || v == null ? null : v),
+    z.coerce.number().int().positive().nullable().optional(),
+  ),
   achieved_at: z.string().min(1), // datetime-local
 });
 

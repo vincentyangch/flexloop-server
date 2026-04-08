@@ -138,9 +138,13 @@ export function PRsPage() {
                   await create.mutateAsync(v as PersonalRecordCreate);
                   toast.success("PR created");
                 } else if (editTarget) {
+                  // user_id is form-only on edit — PersonalRecordAdminUpdate
+                  // uses extra="forbid" and rejects user_id.
+                  const { user_id: _uid, ...rest } = v;
+                  void _uid;
                   await update.mutateAsync({
                     id: editTarget.id,
-                    input: v as PersonalRecordUpdate,
+                    input: rest as PersonalRecordUpdate,
                   });
                   toast.success("PR updated");
                 }

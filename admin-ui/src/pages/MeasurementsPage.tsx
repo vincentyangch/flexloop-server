@@ -128,9 +128,13 @@ export function MeasurementsPage() {
                   await create.mutateAsync(v as MeasurementCreate);
                   toast.success("Measurement created");
                 } else if (editTarget) {
+                  // user_id is form-only on edit — MeasurementAdminUpdate
+                  // uses extra="forbid" and only accepts date/type/value/notes.
+                  const { user_id: _uid, ...rest } = v;
+                  void _uid;
                   await update.mutateAsync({
                     id: editTarget.id,
-                    input: v as MeasurementUpdate,
+                    input: rest as MeasurementUpdate,
                   });
                   toast.success("Measurement updated");
                 }

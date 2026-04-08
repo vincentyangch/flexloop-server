@@ -147,9 +147,14 @@ export function AIUsagePage() {
                   await create.mutateAsync(v as AIUsageCreate);
                   toast.success("Usage row created");
                 } else if (editTarget) {
+                  // user_id and month are form-only on edit — AIUsageAdminUpdate
+                  // uses extra="forbid" and only accepts the 6 counter fields.
+                  const { user_id: _uid, month: _month, ...rest } = v;
+                  void _uid;
+                  void _month;
                   await update.mutateAsync({
                     id: editTarget.id,
-                    input: v as AIUsageUpdate,
+                    input: rest as AIUsageUpdate,
                   });
                   toast.success("Usage row updated");
                 }

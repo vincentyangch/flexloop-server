@@ -194,9 +194,13 @@ export function WorkoutsPage() {
                   await create.mutateAsync(payload as WorkoutCreate);
                   toast.success("Workout created");
                 } else if (editTarget) {
+                  // user_id is form-only on edit — WorkoutSessionAdminUpdate
+                  // uses extra="forbid" and rejects user_id.
+                  const { user_id: _uid, ...rest } = payload;
+                  void _uid;
                   await update.mutateAsync({
                     id: editTarget.id,
-                    input: payload as WorkoutUpdate,
+                    input: rest as WorkoutUpdate,
                   });
                   toast.success("Workout updated");
                 }
