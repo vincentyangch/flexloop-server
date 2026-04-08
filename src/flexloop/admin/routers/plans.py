@@ -213,6 +213,35 @@ async def replace_plan_day(
     return result.scalar_one()
 
 
+@router.delete(
+    "/{plan_id}/days/{day_number}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_plan_day(
+    plan_id: int,
+    day_number: int,
+    db: AsyncSession = Depends(get_session),
+    _admin=Depends(require_admin),
+) -> None:
+    plan_result = await db.execute(select(Plan).where(Plan.id == plan_id))
+    if plan_result.scalar_one_or_none() is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="plan not found",
+        )
+
+    day_result = await db.execute(_day_query(plan_id, day_number))
+    day = day_result.scalar_one_or_none()
+    if day is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"day_number {day_number} not found on plan {plan_id}",
+        )
+
+    await db.delete(day)
+    await db.commit()
+
+
 @router.get("", response_model=PaginatedResponse[PlanAdminResponse])
 async def list_plans(
     request: Request,
