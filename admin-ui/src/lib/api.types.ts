@@ -940,6 +940,78 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/plans/{plan_id}/days": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add Plan Day */
+        post: operations["add_plan_day_api_admin_plans__plan_id__days_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/plans/{plan_id}/days/{day_number}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Replace Plan Day */
+        put: operations["replace_plan_day_api_admin_plans__plan_id__days__day_number__put"];
+        post?: never;
+        /** Delete Plan Day */
+        delete: operations["delete_plan_day_api_admin_plans__plan_id__days__day_number__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Plans */
+        get: operations["list_plans_api_admin_plans_get"];
+        put?: never;
+        /** Create Plan */
+        post: operations["create_plan_api_admin_plans_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/plans/{plan_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Plan */
+        get: operations["get_plan_api_admin_plans__plan_id__get"];
+        /** Update Plan */
+        put: operations["update_plan_api_admin_plans__plan_id__put"];
+        post?: never;
+        /** Delete Plan */
+        delete: operations["delete_plan_api_admin_plans__plan_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/prs": {
         parameters: {
             query?: never;
@@ -1346,6 +1418,39 @@ export interface components {
                 [key: string]: unknown;
             } | null;
         };
+        /** ExerciseGroupAdminCreate */
+        ExerciseGroupAdminCreate: {
+            /**
+             * Group Type
+             * @default straight
+             */
+            group_type: string;
+            /**
+             * Order
+             * @default 1
+             */
+            order: number;
+            /**
+             * Rest After Group Sec
+             * @default 90
+             */
+            rest_after_group_sec: number;
+            /** Exercises */
+            exercises?: components["schemas"]["PlanExerciseAdminCreate"][];
+        };
+        /** ExerciseGroupAdminResponse */
+        ExerciseGroupAdminResponse: {
+            /** Id */
+            id: number;
+            /** Group Type */
+            group_type: string;
+            /** Order */
+            order: number;
+            /** Rest After Group Sec */
+            rest_after_group_sec: number;
+            /** Exercises */
+            exercises?: components["schemas"]["PlanExerciseAdminResponse"][];
+        };
         /** ExerciseGroupCreate */
         ExerciseGroupCreate: {
             /**
@@ -1620,6 +1725,19 @@ export interface components {
             /** Total Pages */
             total_pages: number;
         };
+        /** PaginatedResponse[PlanAdminResponse] */
+        PaginatedResponse_PlanAdminResponse_: {
+            /** Items */
+            items: components["schemas"]["PlanAdminResponse"][];
+            /** Total */
+            total: number;
+            /** Page */
+            page: number;
+            /** Per Page */
+            per_page: number;
+            /** Total Pages */
+            total_pages: number;
+        };
         /** PaginatedResponse[UserAdminResponse] */
         PaginatedResponse_UserAdminResponse_: {
             /** Items */
@@ -1697,6 +1815,94 @@ export interface components {
             /** Achieved At */
             achieved_at?: string | null;
         };
+        /**
+         * PlanAdminCreate
+         * @description POST /api/admin/plans — metadata only. Days are added via
+         *     POST /api/admin/plans/{id}/days after the plan exists.
+         */
+        PlanAdminCreate: {
+            /** User Id */
+            user_id: number;
+            /** Name */
+            name: string;
+            /**
+             * Split Type
+             * @default custom
+             */
+            split_type: string;
+            /**
+             * Cycle Length
+             * @default 3
+             */
+            cycle_length: number;
+            /** Block Start */
+            block_start?: string | null;
+            /** Block End */
+            block_end?: string | null;
+            /**
+             * Status
+             * @default active
+             */
+            status: string;
+            /**
+             * Ai Generated
+             * @default false
+             */
+            ai_generated: boolean;
+        };
+        /** PlanAdminResponse */
+        PlanAdminResponse: {
+            /** Id */
+            id: number;
+            /** User Id */
+            user_id: number;
+            /** Name */
+            name: string;
+            /** Split Type */
+            split_type: string;
+            /** Cycle Length */
+            cycle_length: number;
+            /** Block Start */
+            block_start: string | null;
+            /** Block End */
+            block_end: string | null;
+            /** Status */
+            status: string;
+            /** Ai Generated */
+            ai_generated: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Updated At */
+            updated_at: string | null;
+            /** Days */
+            days?: components["schemas"]["PlanDayAdminResponse"][];
+        };
+        /**
+         * PlanAdminUpdate
+         * @description PUT /api/admin/plans/{id} — metadata only. ``days`` is deliberately
+         *     NOT a field here, so submitting a payload that includes a ``days`` key
+         *     returns 422 (thanks to ``extra="forbid"``). Day edits go through the
+         *     dedicated day endpoints.
+         */
+        PlanAdminUpdate: {
+            /** Name */
+            name?: string | null;
+            /** Split Type */
+            split_type?: string | null;
+            /** Cycle Length */
+            cycle_length?: number | null;
+            /** Block Start */
+            block_start?: string | null;
+            /** Block End */
+            block_end?: string | null;
+            /** Status */
+            status?: string | null;
+            /** Ai Generated */
+            ai_generated?: boolean | null;
+        };
         /** PlanCreate */
         PlanCreate: {
             /** User Id */
@@ -1718,6 +1924,51 @@ export interface components {
              * @default []
              */
             days: components["schemas"]["PlanDayCreate"][];
+        };
+        /**
+         * PlanDayAdminCreate
+         * @description POST /api/admin/plans/{plan_id}/days — full nested day payload.
+         */
+        PlanDayAdminCreate: {
+            /** Day Number */
+            day_number: number;
+            /** Label */
+            label: string;
+            /**
+             * Focus
+             * @default
+             */
+            focus: string;
+            /** Exercise Groups */
+            exercise_groups?: components["schemas"]["ExerciseGroupAdminCreate"][];
+        };
+        /** PlanDayAdminResponse */
+        PlanDayAdminResponse: {
+            /** Id */
+            id: number;
+            /** Day Number */
+            day_number: number;
+            /** Label */
+            label: string;
+            /** Focus */
+            focus: string;
+            /** Exercise Groups */
+            exercise_groups?: components["schemas"]["ExerciseGroupAdminResponse"][];
+        };
+        /**
+         * PlanDayAdminUpdate
+         * @description PUT /api/admin/plans/{plan_id}/days/{day_number} — replace entire day.
+         *
+         *     ``day_number`` is NOT a field — it's fixed by the URL path. Only label,
+         *     focus, and the nested groups/exercises are mutable.
+         */
+        PlanDayAdminUpdate: {
+            /** Label */
+            label?: string | null;
+            /** Focus */
+            focus?: string | null;
+            /** Exercise Groups */
+            exercise_groups?: components["schemas"]["ExerciseGroupAdminCreate"][];
         };
         /** PlanDayCreate */
         PlanDayCreate: {
@@ -1751,6 +2002,59 @@ export interface components {
              * @default []
              */
             exercise_groups: components["schemas"]["ExerciseGroupResponse"][];
+        };
+        /** PlanExerciseAdminCreate */
+        PlanExerciseAdminCreate: {
+            /** Exercise Id */
+            exercise_id: number;
+            /**
+             * Order
+             * @default 1
+             */
+            order: number;
+            /**
+             * Sets
+             * @default 3
+             */
+            sets: number;
+            /**
+             * Reps
+             * @default 10
+             */
+            reps: number;
+            /** Weight */
+            weight?: number | null;
+            /** Rpe Target */
+            rpe_target?: number | null;
+            /** Sets Json */
+            sets_json?: components["schemas"]["SetTargetAdmin"][] | null;
+            /** Notes */
+            notes?: string | null;
+        };
+        /** PlanExerciseAdminResponse */
+        PlanExerciseAdminResponse: {
+            /** Id */
+            id: number;
+            /** Exercise Id */
+            exercise_id: number;
+            /** Exercise Group Id */
+            exercise_group_id: number;
+            /** Order */
+            order: number;
+            /** Sets */
+            sets: number;
+            /** Reps */
+            reps: number;
+            /** Weight */
+            weight: number | null;
+            /** Rpe Target */
+            rpe_target: number | null;
+            /** Sets Json */
+            sets_json: {
+                [key: string]: unknown;
+            }[] | null;
+            /** Notes */
+            notes: string | null;
         };
         /** PlanExerciseCreate */
         PlanExerciseCreate: {
@@ -1938,6 +2242,24 @@ export interface components {
         };
         /** SetTarget */
         SetTarget: {
+            /** Set Number */
+            set_number: number;
+            /** Target Weight */
+            target_weight?: number | null;
+            /**
+             * Target Reps
+             * @default 10
+             */
+            target_reps: number;
+            /** Target Rpe */
+            target_rpe?: number | null;
+        };
+        /**
+         * SetTargetAdmin
+         * @description One row inside PlanExercise.sets_json. Stored as a JSON blob on the
+         *     PlanExercise row; not its own table.
+         */
+        SetTargetAdmin: {
             /** Set Number */
             set_number: number;
             /** Target Weight */
@@ -4522,6 +4844,269 @@ export interface operations {
             header?: never;
             path: {
                 measurement_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_plan_day_api_admin_plans__plan_id__days_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plan_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanDayAdminCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanDayAdminResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    replace_plan_day_api_admin_plans__plan_id__days__day_number__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plan_id: number;
+                day_number: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanDayAdminUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanDayAdminResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_plan_day_api_admin_plans__plan_id__days__day_number__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plan_id: number;
+                day_number: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_plans_api_admin_plans_get: {
+        parameters: {
+            query?: {
+                page?: number;
+                per_page?: number;
+                search?: string | null;
+                sort?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedResponse_PlanAdminResponse_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_plan_api_admin_plans_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanAdminCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanAdminResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_plan_api_admin_plans__plan_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plan_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanAdminResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_plan_api_admin_plans__plan_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plan_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanAdminUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanAdminResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_plan_api_admin_plans__plan_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plan_id: number;
             };
             cookie?: never;
         };
