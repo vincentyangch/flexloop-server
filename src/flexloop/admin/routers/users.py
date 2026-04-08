@@ -73,3 +73,16 @@ async def get_user(
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="user not found")
     return user
+
+
+@router.post("", response_model=UserAdminResponse, status_code=status.HTTP_201_CREATED)
+async def create_user(
+    payload: UserAdminCreate,
+    db: AsyncSession = Depends(get_session),
+    _admin=Depends(require_admin),
+) -> User:
+    user = User(**payload.model_dump())
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+    return user

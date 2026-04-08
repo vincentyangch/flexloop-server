@@ -137,3 +137,44 @@ class TestGetUserDetail:
         cookies = await _make_admin_and_cookie(db_session)
         res = await client.get("/api/admin/users/99999", cookies=cookies)
         assert res.status_code == 404
+
+
+class TestCreateUser:
+    async def test_requires_auth(self, client: AsyncClient) -> None:
+        res = await client.post(
+            "/api/admin/users",
+            headers={"Origin": "http://localhost:5173"},
+            json={
+                "name": "A", "gender": "other", "age": 25, "height": 170, "weight": 70,
+                "experience_level": "beginner",
+            },
+        )
+        assert res.status_code == 401
+
+    async def test_creates_user(self, client: AsyncClient, db_session: AsyncSession) -> None:
+        cookies = await _make_admin_and_cookie(db_session)
+        res = await client.post(
+            "/api/admin/users",
+            cookies=cookies,
+            headers={"Origin": "http://localhost:5173"},
+            json={
+                "name": "New Person", "gender": "f", "age": 30, "height": 165,
+                "weight": 60, "experience_level": "intermediate",
+                "goals": "get strong", "available_equipment": ["dumbbells"],
+            },
+        )
+        assert res.status_code == 201
+        body = res.json()
+        assert body["id"] > 0
+        assert body["name"] == "New Person"
+        assert body["available_equipment"] == ["dumbbells"]
+
+    async def test_rejects_bad_payload(self, client: AsyncClient, db_session: AsyncSession) -> None:
+        cookies = await _make_admin_and_cookie(db_session)
+        res = await client.post(
+            "/api/admin/users",
+            cookies=cookies,
+            headers={"Origin": "http://localhost:5173"},
+            json={"name": ""},  # missing required fields
+        )
+        assert res.status_code == 422
