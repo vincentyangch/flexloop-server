@@ -88,3 +88,19 @@ async def list_plans(
         page=params.page,
         per_page=params.per_page,
     )
+
+
+@router.get("/{plan_id}", response_model=PlanAdminResponse)
+async def get_plan(
+    plan_id: int,
+    db: AsyncSession = Depends(get_session),
+    _admin=Depends(require_admin),
+) -> Plan:
+    result = await db.execute(_plan_query().where(Plan.id == plan_id))
+    plan = result.scalar_one_or_none()
+    if plan is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="plan not found",
+        )
+    return plan

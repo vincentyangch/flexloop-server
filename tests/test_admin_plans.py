@@ -157,3 +157,34 @@ class TestListPlans:
         assert res.status_code == 200
         assert res.json()["total"] == 1
         assert res.json()["items"][0]["name"] == "Hypertrophy Block"
+
+
+class TestGetPlan:
+    async def test_requires_auth(self, client: AsyncClient) -> None:
+        assert (await client.get("/api/admin/plans/1")).status_code == 401
+
+    async def test_returns_404_for_missing(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        cookies = await _make_admin_and_cookie(db_session)
+        res = await client.get("/api/admin/plans/9999", cookies=cookies)
+        assert res.status_code == 404
+
+    async def test_returns_plan_with_nested_days(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        cookies = await _make_admin_and_cookie(db_session)
+        user = await _make_user(db_session)
+        plan = await _make_plan(db_session, user_id=user.id)
+        day = PlanDay(plan_id=plan.id, day_number=1, label="Day 1", focus="full body")
+        db_session.add(day)
+        await db_session.commit()
+        await db_session.refresh(day)
+
+        res = await client.get(f"/api/admin/plans/{plan.id}", cookies=cookies)
+        assert res.status_code == 200
+        body = res.json()
+        assert body["id"] == plan.id
+        assert body["name"] == "Test Plan"
+        assert len(body["days"]) == 1
+        assert body["days"][0]["day_number"] == 1
