@@ -204,8 +204,8 @@ async def update_config(
             action="config_update",
             target_type="app_settings",
             target_id="1",
-            before={k: before_snapshot[k] for k in changed_fields},
-            after=changed_fields,
+            before=before_snapshot,
+            after=after_snapshot,
         )
 
     await db.commit()
