@@ -31,6 +31,8 @@ class UserAdminResponse(BaseModel):
 
 class UserAdminCreate(BaseModel):
     """Payload for POST /api/admin/users."""
+    model_config = ConfigDict(extra="forbid")
+
     name: str = Field(min_length=1, max_length=100)
     gender: str = Field(min_length=1, max_length=20)
     age: int = Field(ge=0, le=150)
@@ -45,6 +47,8 @@ class UserAdminCreate(BaseModel):
 
 class UserAdminUpdate(BaseModel):
     """Payload for PUT /api/admin/users/{id}. All fields optional — partial update."""
+    model_config = ConfigDict(extra="forbid")
+
     name: str | None = Field(default=None, min_length=1, max_length=100)
     gender: str | None = Field(default=None, min_length=1, max_length=20)
     age: int | None = Field(default=None, ge=0, le=150)
