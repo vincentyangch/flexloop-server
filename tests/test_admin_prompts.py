@@ -120,3 +120,83 @@ class TestGetVersion:
             cookies=cookies,
         )
         assert res.status_code == 400
+
+
+class TestUpdateVersion:
+    async def test_requires_auth(
+        self, client: AsyncClient, prompts_tmp_dir: Path
+    ) -> None:
+        res = await client.put(
+            "/api/admin/prompts/plan_generation/versions/v1",
+            json={"content": "x"},
+            headers={"Origin": ORIGIN},
+        )
+        assert res.status_code == 401
+
+    async def test_updates_content(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        prompts_tmp_dir: Path,
+    ) -> None:
+        cookies = await _make_admin_and_cookie(db_session)
+        res = await client.put(
+            "/api/admin/prompts/plan_generation/versions/v1",
+            json={"content": "brand new content"},
+            cookies=cookies,
+            headers={"Origin": ORIGIN},
+        )
+        assert res.status_code == 200
+        # Returns the new content + variables
+        body = res.json()
+        assert body["content"] == "brand new content"
+        assert body["variables"] == []
+        # File on disk reflects the update
+        assert (prompts_tmp_dir / "plan_generation" / "v1.md").read_text() == (
+            "brand new content"
+        )
+
+    async def test_404_missing_version(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        prompts_tmp_dir: Path,
+    ) -> None:
+        cookies = await _make_admin_and_cookie(db_session)
+        res = await client.put(
+            "/api/admin/prompts/plan_generation/versions/v99",
+            json={"content": "x"},
+            cookies=cookies,
+            headers={"Origin": ORIGIN},
+        )
+        assert res.status_code == 404
+
+    async def test_400_invalid_name(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        prompts_tmp_dir: Path,
+    ) -> None:
+        cookies = await _make_admin_and_cookie(db_session)
+        res = await client.put(
+            "/api/admin/prompts/Bad/versions/v1",
+            json={"content": "x"},
+            cookies=cookies,
+            headers={"Origin": ORIGIN},
+        )
+        assert res.status_code == 400
+
+    async def test_rejects_unknown_payload_fields(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        prompts_tmp_dir: Path,
+    ) -> None:
+        cookies = await _make_admin_and_cookie(db_session)
+        res = await client.put(
+            "/api/admin/prompts/plan_generation/versions/v1",
+            json={"content": "x", "rogue_field": True},
+            cookies=cookies,
+            headers={"Origin": ORIGIN},
+        )
+        assert res.status_code == 422
