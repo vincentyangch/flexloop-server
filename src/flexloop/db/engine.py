@@ -23,6 +23,13 @@ async def init_db():
     # (handles columns added after initial create_all)
     _run_migrations()
 
+    # Load runtime-mutable settings from the app_settings row so the
+    # in-memory singleton matches the DB before any request is served.
+    from flexloop.config import refresh_settings_from_db
+
+    async with async_session() as db:
+        await refresh_settings_from_db(db)
+
 
 def _run_migrations():
     """Run Alembic migrations using a synchronous connection to avoid async conflicts."""
