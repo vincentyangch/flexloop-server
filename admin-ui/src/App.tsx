@@ -18,6 +18,7 @@ import { ExercisesPage } from "@/pages/ExercisesPage";
 import { AIUsagePage } from "@/pages/AIUsagePage";
 import { AdminUsersPage } from "@/pages/AdminUsersPage";
 import { PlansPage } from "@/pages/PlansPage";
+import { PlanDetailPage } from "@/pages/PlanDetailPage";
 
 export function App() {
   return (
@@ -39,6 +40,7 @@ export function App() {
             <Route path="account/sessions" element={<SessionsPage />} />
             <Route path="users" element={<UsersPage />} />
             <Route path="plans" element={<PlansPage />} />
+            <Route path="plans/:id" element={<PlanDetailPage />} />
             <Route path="workouts" element={<WorkoutsPage />} />
             <Route path="measurements" element={<MeasurementsPage />} />
             <Route path="prs" element={<PRsPage />} />
