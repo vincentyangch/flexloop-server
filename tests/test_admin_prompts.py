@@ -331,3 +331,117 @@ class TestSetActiveEndpoint:
             headers={"Origin": ORIGIN},
         )
         assert res.status_code == 400
+
+
+class TestDiffEndpoint:
+    async def test_requires_auth(
+        self, client: AsyncClient, prompts_tmp_dir: Path
+    ) -> None:
+        res = await client.get(
+            "/api/admin/prompts/plan_generation/diff?from=v1&to=v2"
+        )
+        assert res.status_code == 401
+
+    async def test_returns_unified_diff(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        prompts_tmp_dir: Path,
+    ) -> None:
+        cookies = await _make_admin_and_cookie(db_session)
+        res = await client.get(
+            "/api/admin/prompts/plan_generation/diff?from=v1&to=v2",
+            cookies=cookies,
+        )
+        assert res.status_code == 200
+        body = res.json()
+        assert body["name"] == "plan_generation"
+        assert body["from_version"] == "v1"
+        assert body["to_version"] == "v2"
+        assert "--- v1" in body["diff"]
+        assert "+++ v2" in body["diff"]
+        assert "-v1 original content" in body["diff"]
+        assert "+v2 {{user_name}}" in body["diff"]
+
+    async def test_400_invalid_version(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        prompts_tmp_dir: Path,
+    ) -> None:
+        cookies = await _make_admin_and_cookie(db_session)
+        res = await client.get(
+            "/api/admin/prompts/plan_generation/diff?from=bad&to=v2",
+            cookies=cookies,
+        )
+        assert res.status_code == 400
+
+    async def test_404_missing_version(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        prompts_tmp_dir: Path,
+    ) -> None:
+        cookies = await _make_admin_and_cookie(db_session)
+        res = await client.get(
+            "/api/admin/prompts/plan_generation/diff?from=v1&to=v99",
+            cookies=cookies,
+        )
+        assert res.status_code == 404
+
+
+class TestDeleteVersionEndpoint:
+    async def test_requires_auth(
+        self, client: AsyncClient, prompts_tmp_dir: Path
+    ) -> None:
+        res = await client.delete(
+            "/api/admin/prompts/plan_generation/versions/v1",
+            headers={"Origin": ORIGIN},
+        )
+        assert res.status_code == 401
+
+    async def test_deletes_non_active(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        prompts_tmp_dir: Path,
+    ) -> None:
+        cookies = await _make_admin_and_cookie(db_session)
+        res = await client.delete(
+            "/api/admin/prompts/plan_generation/versions/v1",
+            cookies=cookies,
+            headers={"Origin": ORIGIN},
+        )
+        assert res.status_code == 204
+        assert not (
+            prompts_tmp_dir / "plan_generation" / "v1.md"
+        ).exists()
+
+    async def test_409_when_active(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        prompts_tmp_dir: Path,
+    ) -> None:
+        cookies = await _make_admin_and_cookie(db_session)
+        res = await client.delete(
+            "/api/admin/prompts/plan_generation/versions/v2",
+            cookies=cookies,
+            headers={"Origin": ORIGIN},
+        )
+        assert res.status_code == 409
+        assert "still active" in res.json()["detail"]
+
+    async def test_409_when_last_version(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        prompts_tmp_dir: Path,
+    ) -> None:
+        cookies = await _make_admin_and_cookie(db_session)
+        res = await client.delete(
+            "/api/admin/prompts/chat/versions/v1",
+            cookies=cookies,
+            headers={"Origin": ORIGIN},
+        )
+        assert res.status_code == 409
