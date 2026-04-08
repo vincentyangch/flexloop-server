@@ -278,3 +278,164 @@ class TestUpdateConfig:
         )
         assert res.status_code == 200
         assert settings.admin_allowed_origins == ["https://admin.example.com"]
+
+
+class TestTestConnection:
+    async def test_requires_auth(self, client: AsyncClient) -> None:
+        res = await client.post(
+            "/api/admin/config/test-connection",
+            json={},
+            headers={"Origin": ORIGIN},
+        )
+        assert res.status_code == 401
+
+    async def test_returns_ok_with_fake_adapter(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from flexloop.ai.base import LLMResponse
+        from flexloop.admin.routers import config as config_router
+
+        class _FakeAdapter:
+            def __init__(self, *a, **kw):
+                pass
+
+            async def generate(self, system_prompt, user_prompt, temperature, max_tokens):
+                return LLMResponse(content="Hello!", input_tokens=5, output_tokens=2)
+
+        def _fake_create_adapter(*args, **kwargs):
+            return _FakeAdapter()
+
+        monkeypatch.setattr(config_router, "create_adapter", _fake_create_adapter)
+
+        _, cookies = await _make_admin_and_cookie(db_session)
+        await _seed_default_app_settings(db_session)
+        res = await client.post(
+            "/api/admin/config/test-connection",
+            json={},
+            cookies=cookies,
+            headers={"Origin": ORIGIN},
+        )
+        assert res.status_code == 200
+        body = res.json()
+        assert body["status"] == "ok"
+        assert body["response_text"] == "Hello!"
+        assert body["error"] is None
+        assert isinstance(body["latency_ms"], int)
+        assert body["latency_ms"] >= 0
+
+    async def test_returns_error_when_adapter_raises(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from flexloop.admin.routers import config as config_router
+
+        class _FailingAdapter:
+            def __init__(self, *a, **kw):
+                pass
+
+            async def generate(self, *a, **kw):
+                raise RuntimeError("boom")
+
+        def _fake_create_adapter(*a, **kw):
+            return _FailingAdapter()
+
+        monkeypatch.setattr(config_router, "create_adapter", _fake_create_adapter)
+
+        _, cookies = await _make_admin_and_cookie(db_session)
+        await _seed_default_app_settings(db_session)
+        res = await client.post(
+            "/api/admin/config/test-connection",
+            json={},
+            cookies=cookies,
+            headers={"Origin": ORIGIN},
+        )
+        assert res.status_code == 200
+        body = res.json()
+        assert body["status"] == "error"
+        assert body["response_text"] is None
+        assert "boom" in body["error"]
+
+    async def test_override_fields_are_used(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Test that the override payload is passed to create_adapter, not
+        the saved config."""
+        from flexloop.ai.base import LLMResponse
+        from flexloop.admin.routers import config as config_router
+
+        captured: dict = {}
+
+        class _FakeAdapter:
+            def __init__(self, *a, **kw):
+                pass
+
+            async def generate(self, *a, **kw):
+                return LLMResponse(content="ok", input_tokens=1, output_tokens=1)
+
+        def _fake_create_adapter(provider, model, api_key, base_url, **kwargs):
+            captured["provider"] = provider
+            captured["model"] = model
+            captured["api_key"] = api_key
+            captured["base_url"] = base_url
+            return _FakeAdapter()
+
+        monkeypatch.setattr(config_router, "create_adapter", _fake_create_adapter)
+
+        _, cookies = await _make_admin_and_cookie(db_session)
+        await _seed_default_app_settings(db_session)
+        res = await client.post(
+            "/api/admin/config/test-connection",
+            json={
+                "provider": "anthropic",
+                "model": "claude-test",
+                "api_key": "sk-override-abc",
+                "base_url": "https://override.example.com",
+            },
+            cookies=cookies,
+            headers={"Origin": ORIGIN},
+        )
+        assert res.status_code == 200
+        assert captured["provider"] == "anthropic"
+        assert captured["model"] == "claude-test"
+        assert captured["api_key"] == "sk-override-abc"
+        assert captured["base_url"] == "https://override.example.com"
+
+    async def test_does_not_write_audit_log(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from flexloop.ai.base import LLMResponse
+        from flexloop.admin.routers import config as config_router
+
+        class _FakeAdapter:
+            def __init__(self, *a, **kw):
+                pass
+
+            async def generate(self, *a, **kw):
+                return LLMResponse(content="ok", input_tokens=1, output_tokens=1)
+
+        monkeypatch.setattr(
+            config_router, "create_adapter", lambda *a, **kw: _FakeAdapter()
+        )
+        _, cookies = await _make_admin_and_cookie(db_session)
+        await _seed_default_app_settings(db_session)
+        await client.post(
+            "/api/admin/config/test-connection",
+            json={},
+            cookies=cookies,
+            headers={"Origin": ORIGIN},
+        )
+        entries = (
+            await db_session.execute(select(AdminAuditLog))
+        ).all()
+        assert len(entries) == 0
