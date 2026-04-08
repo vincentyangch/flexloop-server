@@ -104,3 +104,22 @@ async def get_plan(
             detail="plan not found",
         )
     return plan
+
+
+@router.post(
+    "",
+    response_model=PlanAdminResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_plan(
+    payload: PlanAdminCreate,
+    db: AsyncSession = Depends(get_session),
+    _admin=Depends(require_admin),
+) -> Plan:
+    plan = Plan(**payload.model_dump())
+    db.add(plan)
+    await db.commit()
+    # Refresh with the full eager-load so the response matches the detail
+    # endpoint's shape (empty days list populated, timestamps filled in).
+    result = await db.execute(_plan_query().where(Plan.id == plan.id))
+    return result.scalar_one()

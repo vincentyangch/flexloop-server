@@ -188,3 +188,67 @@ class TestGetPlan:
         assert body["name"] == "Test Plan"
         assert len(body["days"]) == 1
         assert body["days"][0]["day_number"] == 1
+
+
+class TestCreatePlan:
+    async def test_requires_auth(self, client: AsyncClient) -> None:
+        res = await client.post(
+            "/api/admin/plans",
+            json={"user_id": 1, "name": "x"},
+            headers={"Origin": "http://localhost:5173"},
+        )
+        assert res.status_code == 401
+
+    async def test_creates_empty_plan(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        cookies = await _make_admin_and_cookie(db_session)
+        user = await _make_user(db_session)
+        res = await client.post(
+            "/api/admin/plans",
+            json={
+                "user_id": user.id,
+                "name": "New Plan",
+                "split_type": "upper_lower",
+                "cycle_length": 4,
+            },
+            cookies=cookies,
+            headers={"Origin": "http://localhost:5173"},
+        )
+        assert res.status_code == 201
+        body = res.json()
+        assert body["name"] == "New Plan"
+        assert body["split_type"] == "upper_lower"
+        assert body["cycle_length"] == 4
+        assert body["status"] == "active"
+        assert body["days"] == []
+
+    async def test_rejects_unknown_field(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        cookies = await _make_admin_and_cookie(db_session)
+        user = await _make_user(db_session)
+        res = await client.post(
+            "/api/admin/plans",
+            json={
+                "user_id": user.id,
+                "name": "New Plan",
+                "days": [],  # not allowed on create — use day endpoints instead
+            },
+            cookies=cookies,
+            headers={"Origin": "http://localhost:5173"},
+        )
+        assert res.status_code == 422
+
+    async def test_rejects_missing_required_fields(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        cookies = await _make_admin_and_cookie(db_session)
+        # name is required
+        res = await client.post(
+            "/api/admin/plans",
+            json={"user_id": 1},
+            cookies=cookies,
+            headers={"Origin": "http://localhost:5173"},
+        )
+        assert res.status_code == 422
