@@ -55,7 +55,7 @@ type Props = {
 export function ConfigForm({ defaultValues, onSubmit, isSaving = false }: Props) {
   const [revealKey, setRevealKey] = useState(false);
 
-  const { register, handleSubmit, setValue, watch } = useForm<
+  const { register, handleSubmit, setValue, setFocus, watch } = useForm<
     ConfigFormInput,
     unknown,
     ConfigFormValues
@@ -127,7 +127,10 @@ export function ConfigForm({ defaultValues, onSubmit, isSaving = false }: Props)
             <Button
               type="button"
               variant="ghost"
-              onClick={() => setValue("ai_api_key", "")}
+              onClick={() => {
+                setValue("ai_api_key", "");
+                setFocus("ai_api_key");
+              }}
             >
               Rotate
             </Button>

@@ -62,6 +62,7 @@ export function ConfigPage() {
       api.put<Config>("/api/admin/config", input),
     onSuccess: () => {
       toast.success("Config saved");
+      setTestResult(null);
       qc.invalidateQueries({ queryKey: CONFIG_KEY });
     },
     onError: (e) => {
@@ -152,6 +153,7 @@ export function ConfigPage() {
       </Card>
 
       <ConfigForm
+        key={`${config.ai_provider}:${config.ai_model}:${config.ai_api_key}:${config.ai_base_url}:${config.ai_temperature}:${config.ai_max_tokens}:${config.ai_review_frequency}:${config.ai_review_block_weeks}:${(config.admin_allowed_origins ?? []).join(",")}`}
         defaultValues={config}
         isSaving={save.isPending}
         onSubmit={async (v) => {
