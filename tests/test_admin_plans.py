@@ -312,3 +312,97 @@ class TestUpdatePlan:
             headers={"Origin": "http://localhost:5173"},
         )
         assert res.status_code == 422
+
+
+class TestDeletePlan:
+    async def test_requires_auth(self, client: AsyncClient) -> None:
+        assert (await client.delete(
+            "/api/admin/plans/1",
+            headers={"Origin": "http://localhost:5173"},
+        )).status_code == 401
+
+    async def test_404_for_missing(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        cookies = await _make_admin_and_cookie(db_session)
+        res = await client.delete(
+            "/api/admin/plans/9999",
+            cookies=cookies,
+            headers={"Origin": "http://localhost:5173"},
+        )
+        assert res.status_code == 404
+
+    async def test_delete_cascades_to_days_groups_exercises(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        """Deleting a plan must delete its days, groups, and exercises.
+
+        This is the full cascade verified end-to-end — the spec's "delete
+        plan also removes 24 sets" guarantee depends on it.
+        """
+        from flexloop.models.exercise import Exercise
+
+        cookies = await _make_admin_and_cookie(db_session)
+        user = await _make_user(db_session)
+        exercise = Exercise(
+            name="Bench Press",
+            muscle_group="chest",
+            equipment="barbell",
+            category="strength",
+            difficulty="intermediate",
+        )
+        db_session.add(exercise)
+        await db_session.commit()
+        await db_session.refresh(exercise)
+
+        plan = await _make_plan(db_session, user_id=user.id)
+        day = PlanDay(plan_id=plan.id, day_number=1, label="Upper", focus="chest")
+        db_session.add(day)
+        await db_session.flush()
+        group = ExerciseGroup(
+            plan_day_id=day.id, group_type="straight", order=1, rest_after_group_sec=120
+        )
+        db_session.add(group)
+        await db_session.flush()
+        plan_ex = PlanExercise(
+            plan_day_id=day.id,
+            exercise_group_id=group.id,
+            exercise_id=exercise.id,
+            order=1,
+            sets=4,
+            reps=8,
+            weight=100.0,
+        )
+        db_session.add(plan_ex)
+        await db_session.commit()
+
+        plan_id = plan.id
+        day_id = day.id
+        group_id = group.id
+        plan_ex_id = plan_ex.id
+
+        res = await client.delete(
+            f"/api/admin/plans/{plan_id}",
+            cookies=cookies,
+            headers={"Origin": "http://localhost:5173"},
+        )
+        assert res.status_code == 204
+
+        # All four rows should be gone.
+        from sqlalchemy import select as _select
+        assert (
+            await db_session.execute(_select(Plan).where(Plan.id == plan_id))
+        ).scalar_one_or_none() is None
+        assert (
+            await db_session.execute(_select(PlanDay).where(PlanDay.id == day_id))
+        ).scalar_one_or_none() is None
+        assert (
+            await db_session.execute(
+                _select(ExerciseGroup).where(ExerciseGroup.id == group_id)
+            )
+        ).scalar_one_or_none() is None
+        assert (
+            await db_session.execute(
+                _select(PlanExercise).where(PlanExercise.id == plan_ex_id)
+            )
+        ).scalar_one_or_none() is None

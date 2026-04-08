@@ -125,6 +125,25 @@ async def create_plan(
     return result.scalar_one()
 
 
+@router.delete("/{plan_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_plan(
+    plan_id: int,
+    db: AsyncSession = Depends(get_session),
+    _admin=Depends(require_admin),
+) -> None:
+    # Eager-load everything so cascade="all, delete-orphan" can walk the tree
+    # without issuing lazy lookups during flush.
+    result = await db.execute(_plan_query().where(Plan.id == plan_id))
+    plan = result.scalar_one_or_none()
+    if plan is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="plan not found",
+        )
+    await db.delete(plan)
+    await db.commit()
+
+
 @router.put("/{plan_id}", response_model=PlanAdminResponse)
 async def update_plan(
     plan_id: int,
