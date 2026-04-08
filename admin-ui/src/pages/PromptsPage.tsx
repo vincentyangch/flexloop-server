@@ -15,6 +15,7 @@ import { oneDark } from "@codemirror/theme-one-dark";
 import { PromptTree } from "@/components/prompts/PromptTree";
 import { PromptToolbar } from "@/components/prompts/PromptToolbar";
 import { VariableInspector } from "@/components/prompts/VariableInspector";
+import { DiffDialog } from "@/components/prompts/DiffDialog";
 import { api } from "@/lib/api";
 import type { components } from "@/lib/api.types";
 
@@ -214,6 +215,18 @@ export function PromptsPage() {
           {selected && <VariableInspector content={buffer} />}
         </div>
       </div>
+
+      {selected && versionQuery.data && (
+        <DiffDialog
+          open={diffOpen}
+          onOpenChange={setDiffOpen}
+          name={selected.name}
+          currentVersion={selected.version}
+          availableVersions={
+            listQuery.data.prompts.find((p) => p.name === selected.name)?.versions ?? []
+          }
+        />
+      )}
     </div>
   );
 }
