@@ -7,9 +7,6 @@ This router has two endpoint groups on the same prefix:
    resource router.
 2. Three day-level endpoints (POST/PUT/DELETE /plans/{id}/days[/{N}]) that
    treat a single ``PlanDay`` as the atomic save unit per spec §9.3.
-
-Day endpoints are added in a later task — this commit only wires up the
-standard CRUD surface.
 """
 from __future__ import annotations
 
