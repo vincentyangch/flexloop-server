@@ -191,12 +191,20 @@ class TestDeleteVersion:
         with pytest.raises(ConflictError, match="still active"):
             delete_version(prompts_dir, "plan_generation", "v2")
 
-    def test_refuses_last_version(self, prompts_dir: Path) -> None:
-        # chat has only v1 (and it's active). Set active to v1 for default,
-        # then try to delete a non-existent v2 → NotFoundError first, so
-        # we build a fresh case.
-        with pytest.raises(ConflictError):
-            delete_version(prompts_dir, "chat", "v1")
+    def test_refuses_last_version(self, tmp_path: Path) -> None:
+        """Even if the version isn't active for any provider, deleting the
+        last remaining file leaves a dangling prompt directory — refuse."""
+        from flexloop.admin.prompt_service import ConflictError
+
+        (tmp_path / "solo").mkdir()
+        (tmp_path / "solo" / "v1.md").write_text("only one")
+        # No provider entries for 'solo' — 'v1' is not active anywhere,
+        # so the "still active" guard cannot fire. Only the "last version"
+        # guard should block this delete.
+        (tmp_path / "manifest.json").write_text(json.dumps({"solo": {}}))
+
+        with pytest.raises(ConflictError, match="last version"):
+            delete_version(tmp_path, "solo", "v1")
 
     def test_refuses_active_in_nondefault_provider(
         self, tmp_path: Path

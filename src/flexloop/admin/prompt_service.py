@@ -20,6 +20,7 @@ from __future__ import annotations
 import fcntl
 import json
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from difflib import unified_diff
 from pathlib import Path
@@ -97,25 +98,46 @@ def _read_manifest(prompts_dir: Path) -> dict:
     path = _manifest_path(prompts_dir)
     if not path.exists():
         return {}
-    return json.loads(path.read_text())
+    try:
+        return json.loads(path.read_text())
+    except json.JSONDecodeError as exc:
+        raise PromptServiceError(
+            f"manifest at {path} is corrupted: {exc}"
+        ) from exc
 
 
-def _write_manifest_locked(prompts_dir: Path, manifest: dict) -> None:
-    """Overwrite the manifest file under an exclusive lock.
+def _update_manifest_locked(
+    prompts_dir: Path,
+    mutator: "Callable[[dict], None]",
+) -> None:
+    """Read-modify-write the manifest atomically under an exclusive lock.
 
-    Uses ``fcntl.flock(fd, LOCK_EX)`` on the file descriptor. The lock
-    is released when the file is closed at the end of the ``with`` block.
+    ``mutator`` receives the parsed manifest dict and mutates it in place.
+    The mutated dict is then written back to disk. The whole read-modify-
+    write cycle happens inside a single ``LOCK_EX`` section so concurrent
+    callers cannot race on the read step.
     """
     path = _manifest_path(prompts_dir)
-    # Open in r+ if existing, w if new — but we need LOCK_EX on the fd,
-    # and the simplest lockable form is open-for-writing.
-    mode = "r+" if path.exists() else "w+"
-    with open(path, mode) as f:
+    # Ensure the file exists so we can open it in r+ mode.
+    if not path.exists():
+        path.write_text("{}")
+    with open(path, "r+") as f:
         fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-        f.seek(0)
-        f.truncate()
-        json.dump(manifest, f, indent=2)
-        fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        try:
+            f.seek(0)
+            raw = f.read()
+            try:
+                manifest = json.loads(raw) if raw else {}
+            except json.JSONDecodeError as exc:
+                raise PromptServiceError(
+                    f"manifest at {path} is corrupted: {exc}"
+                ) from exc
+            mutator(manifest)
+            f.seek(0)
+            f.truncate()
+            json.dump(manifest, f, indent=2)
+        finally:
+            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
 
 
 # --- List -----------------------------------------------------------------
@@ -159,7 +181,12 @@ def read_version(prompts_dir: Path, name: str, version: str) -> str:
     path = prompts_dir / name / f"{version}.md"
     if not path.exists():
         raise NotFoundError(f"prompt {name!r} version {version!r} not found")
-    return path.read_text()
+    try:
+        return path.read_text()
+    except OSError as exc:
+        raise PromptServiceError(
+            f"failed to read {path}: {exc}"
+        ) from exc
 
 
 # --- Write a version ------------------------------------------------------
@@ -181,12 +208,17 @@ def write_version(prompts_dir: Path, name: str, version: str, content: str) -> N
         raise NotFoundError(f"prompt {name!r} version {version!r} not found")
     # r+ opens for read-write without truncating; we truncate manually after
     # acquiring the lock to avoid losing contents in a crash window.
-    with open(path, "r+") as f:
-        fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-        f.seek(0)
-        f.truncate()
-        f.write(content)
-        fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+    try:
+        with open(path, "r+") as f:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            f.seek(0)
+            f.truncate()
+            f.write(content)
+            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+    except OSError as exc:
+        raise PromptServiceError(
+            f"failed to write {path}: {exc}"
+        ) from exc
 
 
 # --- Create a new version (clone of current active) ----------------------
@@ -217,7 +249,12 @@ def create_version(prompts_dir: Path, name: str) -> tuple[str, str]:
         raise NotFoundError(
             f"prompt {name!r} active version {source_version!r} file is missing"
         )
-    source_content = source_path.read_text()
+    try:
+        source_content = source_path.read_text()
+    except OSError as exc:
+        raise PromptServiceError(
+            f"failed to read {source_path}: {exc}"
+        ) from exc
 
     # Compute next version number — scan existing files, not the manifest,
     # to cover orphaned versions.
@@ -231,10 +268,15 @@ def create_version(prompts_dir: Path, name: str) -> tuple[str, str]:
 
     # Write the new file — use LOCK_EX on an open-for-write to prevent
     # two concurrent "New version" clicks from racing.
-    with open(new_path, "w") as f:
-        fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-        f.write(source_content)
-        fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+    try:
+        with open(new_path, "w") as f:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            f.write(source_content)
+            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+    except OSError as exc:
+        raise PromptServiceError(
+            f"failed to create {new_path}: {exc}"
+        ) from exc
 
     return new_version, source_content
 
@@ -264,9 +306,10 @@ def set_active(prompts_dir: Path, name: str, version: str, provider: str = "defa
             f"prompt {name!r} version {version!r} does not exist"
         )
 
-    manifest = _read_manifest(prompts_dir)
-    manifest.setdefault(name, {})[provider] = version
-    _write_manifest_locked(prompts_dir, manifest)
+    def _apply(manifest: dict) -> None:
+        manifest.setdefault(name, {})[provider] = version
+
+    _update_manifest_locked(prompts_dir, _apply)
 
 
 # --- Delete a version ----------------------------------------------------
