@@ -1160,6 +1160,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Config */
+        get: operations["get_config_api_admin_config_get"];
+        /** Update Config */
+        put: operations["update_config_api_admin_config_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/config/test-connection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test Connection
+         * @description Fire a tiny round-trip to the AI provider and return the result.
+         *
+         *     Override fields in the payload are used when present, else the saved
+         *     config is used. The endpoint always returns 200 — failures are
+         *     returned in the ``status`` field so the UI can render them inline.
+         */
+        post: operations["test_connection_api_admin_config_test_connection_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -1351,6 +1393,61 @@ export interface components {
             password?: string | null;
             /** Is Active */
             is_active?: boolean | null;
+        };
+        /**
+         * AppSettingsResponse
+         * @description GET /api/admin/config response shape.
+         *
+         *     ``ai_api_key`` is always masked — the cleartext value stays on the
+         *     server. A client that wants to "see" the key has to type it in again.
+         */
+        AppSettingsResponse: {
+            /** Ai Provider */
+            ai_provider: string;
+            /** Ai Model */
+            ai_model: string;
+            /** Ai Api Key */
+            ai_api_key: string;
+            /** Ai Base Url */
+            ai_base_url: string;
+            /** Ai Temperature */
+            ai_temperature: number;
+            /** Ai Max Tokens */
+            ai_max_tokens: number;
+            /** Ai Review Frequency */
+            ai_review_frequency: string;
+            /** Ai Review Block Weeks */
+            ai_review_block_weeks: number;
+            /** Admin Allowed Origins */
+            admin_allowed_origins: string[];
+        };
+        /**
+         * AppSettingsUpdate
+         * @description PUT /api/admin/config payload.
+         *
+         *     All fields optional — partial update. ``ai_api_key`` accepts either
+         *     a new plaintext value or the masked form returned by GET (treated as
+         *     "leave unchanged"). Omitted fields are not touched.
+         */
+        AppSettingsUpdate: {
+            /** Ai Provider */
+            ai_provider?: string | null;
+            /** Ai Model */
+            ai_model?: string | null;
+            /** Ai Api Key */
+            ai_api_key?: string | null;
+            /** Ai Base Url */
+            ai_base_url?: string | null;
+            /** Ai Temperature */
+            ai_temperature?: number | null;
+            /** Ai Max Tokens */
+            ai_max_tokens?: number | null;
+            /** Ai Review Frequency */
+            ai_review_frequency?: string | null;
+            /** Ai Review Block Weeks */
+            ai_review_block_weeks?: number | null;
+            /** Admin Allowed Origins */
+            admin_allowed_origins?: string[] | null;
         };
         /** ChangePasswordRequest */
         ChangePasswordRequest: {
@@ -2345,6 +2442,39 @@ export interface components {
              * @default []
              */
             sets: components["schemas"]["SyncSetData"][];
+        };
+        /**
+         * TestConnectionRequest
+         * @description POST /api/admin/config/test-connection payload.
+         *
+         *     All fields optional — omitted fields fall back to the currently saved
+         *     DB value, EXCEPT ``max_tokens`` which defaults to 10 (test calls should
+         *     be cheap; override explicitly if you need a longer response).
+         */
+        TestConnectionRequest: {
+            /** Provider */
+            provider?: string | null;
+            /** Model */
+            model?: string | null;
+            /** Api Key */
+            api_key?: string | null;
+            /** Base Url */
+            base_url?: string | null;
+            /** Temperature */
+            temperature?: number | null;
+            /** Max Tokens */
+            max_tokens?: number | null;
+        };
+        /** TestConnectionResponse */
+        TestConnectionResponse: {
+            /** Status */
+            status: string;
+            /** Latency Ms */
+            latency_ms: number;
+            /** Response Text */
+            response_text: string | null;
+            /** Error */
+            error: string | null;
         };
         /**
          * UserAdminCreate
@@ -5766,6 +5896,92 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_config_api_admin_config_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppSettingsResponse"];
+                };
+            };
+        };
+    };
+    update_config_api_admin_config_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AppSettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppSettingsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    test_connection_api_admin_config_test_connection_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TestConnectionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestConnectionResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
