@@ -8,6 +8,7 @@ Spec: §10.2
 """
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -31,7 +32,8 @@ router = APIRouter(prefix="/api/admin/prompts", tags=["admin:prompts"])
 # Default prompts directory — matches flexloop.routers.ai PROMPTS_DIR.
 # Resolved to an absolute path so worktrees/tests can't accidentally
 # read from the wrong directory when the CWD changes.
-_DEFAULT_PROMPTS_DIR = Path("prompts").resolve()
+# Honors ``PROMPTS_DIR`` env var for smoke-test overrides.
+_DEFAULT_PROMPTS_DIR = Path(os.getenv("PROMPTS_DIR", "prompts")).resolve()
 
 
 def get_prompts_dir() -> Path:
