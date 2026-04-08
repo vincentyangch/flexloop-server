@@ -1,18 +1,19 @@
 /**
  * Admin Prompts editor page.
  *
- * Two-panel layout: PromptTree on the left, CodeMirror editor on the right.
- * This first iteration is READ-ONLY — the editor shows the selected
- * version's content but the Save / New version / Set active / Diff
- * toolbar actions are added in a later task.
+ * Three-panel layout: PromptTree on the left, CodeMirror editor in the
+ * center, VariableInspector on the right. Toolbar above the editor provides
+ * Save / New version / Set active / Diff actions.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import CodeMirror from "@uiw/react-codemirror";
 import { markdown } from "@codemirror/lang-markdown";
 import { oneDark } from "@codemirror/theme-one-dark";
 
 import { PromptTree } from "@/components/prompts/PromptTree";
+import { PromptToolbar } from "@/components/prompts/PromptToolbar";
 import { VariableInspector } from "@/components/prompts/VariableInspector";
 import { api } from "@/lib/api";
 import type { components } from "@/lib/api.types";
@@ -31,6 +32,9 @@ export function PromptsPage() {
     null,
   );
   const [buffer, setBuffer] = useState<string>("");
+  const [diffOpen, setDiffOpen] = useState(false);
+
+  const qc = useQueryClient();
 
   const listQuery = useQuery({
     queryKey: LIST_KEY,
@@ -79,6 +83,44 @@ export function PromptsPage() {
     () => versionQuery.data && buffer !== versionQuery.data.content,
     [versionQuery.data, buffer],
   );
+
+  const save = useMutation({
+    mutationFn: ({ name, version, content }: { name: string; version: string; content: string }) =>
+      api.put<VersionResponse>(
+        `/api/admin/prompts/${name}/versions/${version}`,
+        { content },
+      ),
+    onSuccess: (data, variables) => {
+      toast.success("Saved");
+      // Reset the ref so the refetch can flow in; use the server's
+      // round-trip value as the authoritative buffer.
+      loadedVersionRef.current = null;
+      setBuffer(data.content);
+      qc.invalidateQueries({ queryKey: versionKey(variables.name, variables.version) });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Save failed"),
+  });
+
+  const createVersion = useMutation({
+    mutationFn: ({ name }: { name: string }) =>
+      api.post<VersionResponse>(`/api/admin/prompts/${name}/versions`, {}),
+    onSuccess: (data, variables) => {
+      toast.success(`Created ${data.version}`);
+      qc.invalidateQueries({ queryKey: LIST_KEY });
+      setSelected({ name: variables.name, version: data.version });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Create failed"),
+  });
+
+  const setActive = useMutation({
+    mutationFn: ({ name, version }: { name: string; version: string }) =>
+      api.put(`/api/admin/prompts/${name}/active`, { version, provider: "default" }),
+    onSuccess: () => {
+      toast.success("Active version updated");
+      qc.invalidateQueries({ queryKey: LIST_KEY });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Set active failed"),
+  });
 
   if (listQuery.isLoading) {
     return <div className="p-6">Loading prompts…</div>;
@@ -133,6 +175,27 @@ export function PromptsPage() {
                   )}
                 </div>
               </div>
+              <PromptToolbar
+                isDirty={!!isDirty}
+                isSaving={save.isPending}
+                isCreating={createVersion.isPending}
+                isSettingActive={setActive.isPending}
+                canSetActive={
+                  listQuery.data.prompts.find((p) => p.name === selected.name)?.active_by_provider?.default
+                    !== selected.version
+                }
+                onSave={() => save.mutate({
+                  name: selected.name,
+                  version: selected.version,
+                  content: buffer,
+                })}
+                onNewVersion={() => createVersion.mutate({ name: selected.name })}
+                onSetActive={() => setActive.mutate({
+                  name: selected.name,
+                  version: selected.version,
+                })}
+                onOpenDiff={() => setDiffOpen(true)}
+              />
               <div className="flex-1 min-h-0 overflow-hidden border rounded">
                 <CodeMirror
                   value={buffer}
