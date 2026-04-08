@@ -1,10 +1,31 @@
 """Unit tests for flexloop.config.refresh_settings_from_db."""
 from __future__ import annotations
 
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from flexloop.config import refresh_settings_from_db, settings
+from flexloop.config import _DB_BACKED_FIELDS, refresh_settings_from_db, settings
 from flexloop.models.app_settings import AppSettings
+
+
+@pytest.fixture(autouse=True)
+def _restore_settings_singleton():
+    """Snapshot the runtime-mutable fields on ``settings`` before each test
+    and restore them on teardown.
+
+    Prevents state leakage between tests — especially important because
+    ``test_mutates_singleton_from_row`` writes values like
+    ``admin_allowed_origins=["https://admin.example.com"]`` that would
+    otherwise block future admin write tests at the CSRF layer.
+    """
+    snapshot = {f: getattr(settings, f) for f in _DB_BACKED_FIELDS}
+    # Copy lists so subsequent mutations don't alias the snapshot
+    for key, value in list(snapshot.items()):
+        if isinstance(value, list):
+            snapshot[key] = list(value)
+    yield
+    for key, value in snapshot.items():
+        setattr(settings, key, value)
 
 
 async def _seed_row(
@@ -41,14 +62,14 @@ async def _seed_row(
 
 class TestRefreshSettingsFromDb:
     async def test_noop_when_row_missing(self, db_session: AsyncSession) -> None:
-        # Capture current defaults
-        snapshot = {
-            "ai_provider": settings.ai_provider,
-            "ai_model": settings.ai_model,
-        }
+        # Capture all DB-backed fields before the call
+        snapshot = {f: getattr(settings, f) for f in _DB_BACKED_FIELDS}
         await refresh_settings_from_db(db_session)
-        assert settings.ai_provider == snapshot["ai_provider"]
-        assert settings.ai_model == snapshot["ai_model"]
+        # Every field should still match its pre-call value
+        for field, expected in snapshot.items():
+            assert getattr(settings, field) == expected, (
+                f"{field} changed unexpectedly: {expected!r} -> {getattr(settings, field)!r}"
+            )
 
     async def test_mutates_singleton_from_row(self, db_session: AsyncSession) -> None:
         await _seed_row(
@@ -67,6 +88,10 @@ class TestRefreshSettingsFromDb:
         assert settings.ai_temperature == 0.3
         assert settings.ai_max_tokens == 4000
         assert settings.admin_allowed_origins == ["https://admin.example.com"]
+        # Fields left at default by _seed_row — verify they still came through the refresh
+        assert settings.ai_base_url == ""
+        assert settings.ai_review_frequency == "block"
+        assert settings.ai_review_block_weeks == 6
 
     async def test_database_url_and_host_port_untouched(
         self, db_session: AsyncSession
