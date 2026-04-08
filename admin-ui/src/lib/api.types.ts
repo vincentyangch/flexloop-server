@@ -1202,6 +1202,93 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/prompts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Prompts */
+        get: operations["list_prompts_api_admin_prompts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/prompts/{name}/versions/{version}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Version */
+        get: operations["get_version_api_admin_prompts__name__versions__version__get"];
+        /** Update Version */
+        put: operations["update_version_api_admin_prompts__name__versions__version__put"];
+        post?: never;
+        /** Delete Version Endpoint */
+        delete: operations["delete_version_endpoint_api_admin_prompts__name__versions__version__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/prompts/{name}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Version */
+        post: operations["create_version_api_admin_prompts__name__versions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/prompts/{name}/active": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set Active Version */
+        put: operations["set_active_version_api_admin_prompts__name__active_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/prompts/{name}/diff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Diff */
+        get: operations["get_diff_api_admin_prompts__name__diff_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -1456,6 +1543,17 @@ export interface components {
             /** New Password */
             new_password: string;
         };
+        /** DiffResponse */
+        DiffResponse: {
+            /** Name */
+            name: string;
+            /** From Version */
+            from_version: string;
+            /** To Version */
+            to_version: string;
+            /** Diff */
+            diff: string;
+        };
         /** ExerciseAdminCreate */
         ExerciseAdminCreate: {
             /** Name */
@@ -1628,6 +1726,11 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** ListPromptsResponse */
+        ListPromptsResponse: {
+            /** Prompts */
+            prompts: components["schemas"]["PromptInfoResponse"][];
         };
         /** LoginRequest */
         LoginRequest: {
@@ -2279,6 +2382,33 @@ export interface components {
             /** Days */
             days?: components["schemas"]["PlanDayCreate"][] | null;
         };
+        /** PromptInfoResponse */
+        PromptInfoResponse: {
+            /** Name */
+            name: string;
+            /** Versions */
+            versions: string[];
+            /** Active By Provider */
+            active_by_provider: {
+                [key: string]: string;
+            };
+        };
+        /** PromptVersionResponse */
+        PromptVersionResponse: {
+            /** Name */
+            name: string;
+            /** Version */
+            version: string;
+            /** Content */
+            content: string;
+            /** Variables */
+            variables: string[];
+        };
+        /** PromptVersionUpdate */
+        PromptVersionUpdate: {
+            /** Content */
+            content: string;
+        };
         /** SessionFeedbackCreate */
         SessionFeedbackCreate: {
             /** Sleep Quality */
@@ -2336,6 +2466,25 @@ export interface components {
             ip_address: string | null;
             /** Is Current */
             is_current: boolean;
+        };
+        /** SetActiveRequest */
+        SetActiveRequest: {
+            /** Version */
+            version: string;
+            /**
+             * Provider
+             * @default default
+             */
+            provider: string;
+        };
+        /** SetActiveResponse */
+        SetActiveResponse: {
+            /** Name */
+            name: string;
+            /** Version */
+            version: string;
+            /** Provider */
+            provider: string;
         };
         /** SetTarget */
         SetTarget: {
@@ -5981,6 +6130,224 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TestConnectionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_prompts_api_admin_prompts_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListPromptsResponse"];
+                };
+            };
+        };
+    };
+    get_version_api_admin_prompts__name__versions__version__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+                version: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromptVersionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_version_api_admin_prompts__name__versions__version__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+                version: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PromptVersionUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromptVersionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_version_endpoint_api_admin_prompts__name__versions__version__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+                version: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_version_api_admin_prompts__name__versions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromptVersionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_active_version_api_admin_prompts__name__active_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetActiveRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetActiveResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_diff_api_admin_prompts__name__diff_get: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+            };
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiffResponse"];
                 };
             };
             /** @description Validation Error */
