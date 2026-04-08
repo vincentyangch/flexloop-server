@@ -103,3 +103,178 @@ class TestGetConfig:
         res = await client.get("/api/admin/config", cookies=cookies)
         assert res.status_code == 200
         assert res.json()["ai_api_key"] == ""
+
+
+class TestUpdateConfig:
+    async def test_requires_auth(self, client: AsyncClient) -> None:
+        res = await client.put(
+            "/api/admin/config",
+            json={"ai_provider": "anthropic"},
+            headers={"Origin": ORIGIN},
+        )
+        assert res.status_code == 401
+
+    async def test_404_when_row_missing(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        _, cookies = await _make_admin_and_cookie(db_session)
+        res = await client.put(
+            "/api/admin/config",
+            json={"ai_provider": "anthropic"},
+            cookies=cookies,
+            headers={"Origin": ORIGIN},
+        )
+        assert res.status_code == 404
+
+    async def test_updates_fields(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        _, cookies = await _make_admin_and_cookie(db_session)
+        await _seed_default_app_settings(db_session)
+        res = await client.put(
+            "/api/admin/config",
+            json={
+                "ai_provider": "anthropic",
+                "ai_model": "claude-3-5-sonnet",
+                "ai_temperature": 0.3,
+            },
+            cookies=cookies,
+            headers={"Origin": ORIGIN},
+        )
+        assert res.status_code == 200
+        body = res.json()
+        assert body["ai_provider"] == "anthropic"
+        assert body["ai_model"] == "claude-3-5-sonnet"
+        assert body["ai_temperature"] == 0.3
+        # Unchanged fields still present
+        assert body["ai_max_tokens"] == 2000
+
+    async def test_updates_api_key_plaintext(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        _, cookies = await _make_admin_and_cookie(db_session)
+        await _seed_default_app_settings(db_session)
+        res = await client.put(
+            "/api/admin/config",
+            json={"ai_api_key": "sk-new-key-9999abc"},
+            cookies=cookies,
+            headers={"Origin": ORIGIN},
+        )
+        assert res.status_code == 200
+        # Response is masked, not plaintext
+        assert res.json()["ai_api_key"].endswith("abc")
+        assert "sk-new-key" not in res.json()["ai_api_key"]
+        # DB has the plaintext
+        row = (
+            await db_session.execute(select(AppSettings).where(AppSettings.id == 1))
+        ).scalar_one()
+        assert row.ai_api_key == "sk-new-key-9999abc"
+
+    async def test_masked_key_input_is_treated_as_no_change(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        """If the client PUTs the masked form back (e.g. didn't touch the
+        key field), the server must NOT overwrite the stored plaintext
+        with the bullets.
+        """
+        _, cookies = await _make_admin_and_cookie(db_session)
+        await _seed_default_app_settings(db_session)
+        # Fetch to learn the current masked value
+        get_res = await client.get("/api/admin/config", cookies=cookies)
+        masked_key = get_res.json()["ai_api_key"]
+        # Submit it back unchanged
+        res = await client.put(
+            "/api/admin/config",
+            json={"ai_api_key": masked_key, "ai_provider": "anthropic"},
+            cookies=cookies,
+            headers={"Origin": ORIGIN},
+        )
+        assert res.status_code == 200
+        # DB still has the original plaintext
+        row = (
+            await db_session.execute(select(AppSettings).where(AppSettings.id == 1))
+        ).scalar_one()
+        assert row.ai_api_key == "sk-test-1234567xyz"
+        assert row.ai_provider == "anthropic"
+
+    async def test_rejects_unknown_field(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        _, cookies = await _make_admin_and_cookie(db_session)
+        await _seed_default_app_settings(db_session)
+        res = await client.put(
+            "/api/admin/config",
+            json={"totally_wrong_field": "whatever"},
+            cookies=cookies,
+            headers={"Origin": ORIGIN},
+        )
+        assert res.status_code == 422
+
+    async def test_writes_audit_log_on_change(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        admin, cookies = await _make_admin_and_cookie(db_session)
+        await _seed_default_app_settings(db_session)
+        res = await client.put(
+            "/api/admin/config",
+            json={"ai_provider": "anthropic", "ai_temperature": 0.3},
+            cookies=cookies,
+            headers={"Origin": ORIGIN},
+        )
+        assert res.status_code == 200
+        entries = (
+            await db_session.execute(
+                select(AdminAuditLog).where(AdminAuditLog.action == "config_update")
+            )
+        ).scalars().all()
+        assert len(entries) == 1
+        entry = entries[0]
+        assert entry.admin_user_id == admin.id
+        assert entry.target_type == "app_settings"
+        assert entry.target_id == "1"
+        assert entry.before_json is not None
+        assert entry.after_json is not None
+        assert entry.before_json["ai_provider"] == "openai"
+        assert entry.after_json["ai_provider"] == "anthropic"
+        # API key must be masked in both snapshots
+        assert "sk-test" not in entry.before_json["ai_api_key"]
+        assert "sk-test" not in entry.after_json["ai_api_key"]
+
+    async def test_no_audit_log_when_nothing_changes(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        _, cookies = await _make_admin_and_cookie(db_session)
+        await _seed_default_app_settings(db_session)
+        res = await client.put(
+            "/api/admin/config",
+            json={"ai_provider": "openai"},  # same as current
+            cookies=cookies,
+            headers={"Origin": ORIGIN},
+        )
+        assert res.status_code == 200
+        entries = (
+            await db_session.execute(
+                select(AdminAuditLog).where(AdminAuditLog.action == "config_update")
+            )
+        ).all()
+        assert len(entries) == 0
+
+    async def test_refreshes_settings_singleton(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        """After PUT, the in-memory settings singleton must reflect the
+        new values — this is what makes the CSRF middleware pick up a new
+        allowed-origins list without restart.
+        """
+        from flexloop.config import settings
+
+        _, cookies = await _make_admin_and_cookie(db_session)
+        await _seed_default_app_settings(db_session)
+        res = await client.put(
+            "/api/admin/config",
+            json={"admin_allowed_origins": ["https://admin.example.com"]},
+            cookies=cookies,
+            headers={"Origin": ORIGIN},
+        )
+        assert res.status_code == 200
+        assert settings.admin_allowed_origins == ["https://admin.example.com"]
