@@ -37,7 +37,9 @@ export type UserFormValues = z.output<typeof schema>;
 type Props = {
   defaultValues?: UserAdminResponse | null;
   onSubmit: (
-    values: UserFormValues & { available_equipment: string[] | null },
+    values: Omit<UserFormValues, "available_equipment_csv"> & {
+      available_equipment: string[] | null;
+    },
   ) => void | Promise<void>;
   isSaving?: boolean;
 };
@@ -77,12 +79,17 @@ export function UserForm({ defaultValues, onSubmit, isSaving = false }: Props) {
   });
 
   const submit = handleSubmit(async (values) => {
-    const equipment = values.available_equipment_csv
+    // Strip available_equipment_csv from the payload: it's a UI-only
+    // intermediate field, and the backend UserAdminUpdate/Create schemas
+    // use extra="forbid" so any unknown key triggers a 422.
+    const { available_equipment_csv, ...rest } = values;
+    void available_equipment_csv;
+    const equipment = available_equipment_csv
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean);
     await onSubmit({
-      ...values,
+      ...rest,
       available_equipment: equipment.length ? equipment : null,
     });
   });
