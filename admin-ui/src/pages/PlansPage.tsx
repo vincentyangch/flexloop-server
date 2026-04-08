@@ -230,7 +230,7 @@ export function PlansPage() {
                 }
                 setEditTarget(null);
               } catch (e) {
-                toast.error((e as Error).message);
+                toast.error(e instanceof Error ? e.message : "Save failed");
               }
             }}
           />
@@ -254,7 +254,7 @@ export function PlansPage() {
             toast.success("Plan updated via JSON");
             setEditTarget(null);
           } catch (e) {
-            toast.error((e as Error).message);
+            toast.error(e instanceof Error ? e.message : "JSON save failed");
           }
         }}
         isSaving={update.isPending}
@@ -274,9 +274,10 @@ export function PlansPage() {
           try {
             await del.mutateAsync(deleteTarget.id);
             toast.success("Plan deleted");
-            setDeleteTarget(null);
           } catch (e) {
-            toast.error((e as Error).message);
+            toast.error(e instanceof Error ? e.message : "Delete failed");
+          } finally {
+            setDeleteTarget(null);
           }
         }}
       />

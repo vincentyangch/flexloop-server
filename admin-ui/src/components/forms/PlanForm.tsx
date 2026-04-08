@@ -11,6 +11,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -75,7 +76,7 @@ export function PlanForm({ defaultValues, onSubmit, isSaving = false }: Props) {
 
   return (
     <form
-      onSubmit={handleSubmit(onSubmit)}
+      onSubmit={(e) => void handleSubmit((v) => onSubmit(v))(e)}
       className="space-y-4"
     >
       <div className="space-y-1.5">
@@ -129,6 +130,16 @@ export function PlanForm({ defaultValues, onSubmit, isSaving = false }: Props) {
             <SelectItem value="archived">Archived</SelectItem>
           </SelectContent>
         </Select>
+      </div>
+      <div className="flex items-center gap-2">
+        <Checkbox
+          id="ai_generated"
+          checked={watch("ai_generated")}
+          onCheckedChange={(checked) => setValue("ai_generated", checked === true)}
+        />
+        <Label htmlFor="ai_generated" className="cursor-pointer">
+          AI-generated
+        </Label>
       </div>
       <div className="flex justify-end pt-2">
         <Button type="submit" disabled={isSaving}>
