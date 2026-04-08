@@ -252,3 +252,63 @@ class TestCreatePlan:
             headers={"Origin": "http://localhost:5173"},
         )
         assert res.status_code == 422
+
+
+class TestUpdatePlan:
+    async def test_requires_auth(self, client: AsyncClient) -> None:
+        res = await client.put(
+            "/api/admin/plans/1",
+            json={"name": "x"},
+            headers={"Origin": "http://localhost:5173"},
+        )
+        assert res.status_code == 401
+
+    async def test_404_for_missing(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        cookies = await _make_admin_and_cookie(db_session)
+        res = await client.put(
+            "/api/admin/plans/9999",
+            json={"name": "x"},
+            cookies=cookies,
+            headers={"Origin": "http://localhost:5173"},
+        )
+        assert res.status_code == 404
+
+    async def test_partial_update(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        cookies = await _make_admin_and_cookie(db_session)
+        user = await _make_user(db_session)
+        plan = await _make_plan(db_session, user_id=user.id, name="Old Name")
+        res = await client.put(
+            f"/api/admin/plans/{plan.id}",
+            json={"name": "New Name", "status": "archived"},
+            cookies=cookies,
+            headers={"Origin": "http://localhost:5173"},
+        )
+        assert res.status_code == 200
+        body = res.json()
+        assert body["name"] == "New Name"
+        assert body["status"] == "archived"
+        # Unrelated fields untouched.
+        assert body["split_type"] == "upper_lower"
+        assert body["cycle_length"] == 4
+
+    async def test_rejects_days_field(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        """The admin update schema deliberately doesn't accept ``days`` —
+        day edits go through the dedicated day endpoints. A typo like
+        passing a nested plan JSON should 422, not silently drop the field.
+        """
+        cookies = await _make_admin_and_cookie(db_session)
+        user = await _make_user(db_session)
+        plan = await _make_plan(db_session, user_id=user.id)
+        res = await client.put(
+            f"/api/admin/plans/{plan.id}",
+            json={"name": "x", "days": []},
+            cookies=cookies,
+            headers={"Origin": "http://localhost:5173"},
+        )
+        assert res.status_code == 422

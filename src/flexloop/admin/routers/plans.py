@@ -123,3 +123,26 @@ async def create_plan(
     # endpoint's shape (empty days list populated, timestamps filled in).
     result = await db.execute(_plan_query().where(Plan.id == plan.id))
     return result.scalar_one()
+
+
+@router.put("/{plan_id}", response_model=PlanAdminResponse)
+async def update_plan(
+    plan_id: int,
+    payload: PlanAdminUpdate,
+    db: AsyncSession = Depends(get_session),
+    _admin=Depends(require_admin),
+) -> Plan:
+    result = await db.execute(select(Plan).where(Plan.id == plan_id))
+    plan = result.scalar_one_or_none()
+    if plan is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="plan not found",
+        )
+
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(plan, field, value)
+
+    await db.commit()
+    result = await db.execute(_plan_query().where(Plan.id == plan.id))
+    return result.scalar_one()
