@@ -63,7 +63,7 @@ const groups: Group[] = [
   {
     label: "AI",
     items: [
-      { label: "Config", to: "/ai/config", icon: Settings, disabled: true },
+      { label: "Config", to: "/ai/config", icon: Settings },
       { label: "Prompts", to: "/ai/prompts", icon: FileText, disabled: true },
       { label: "Playground", to: "/ai/playground", icon: FlaskConical, disabled: true },
       { label: "Usage", to: "/ai/usage", icon: BarChart3 },

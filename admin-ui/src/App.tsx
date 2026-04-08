@@ -19,6 +19,7 @@ import { AIUsagePage } from "@/pages/AIUsagePage";
 import { AdminUsersPage } from "@/pages/AdminUsersPage";
 import { PlansPage } from "@/pages/PlansPage";
 import { PlanDetailPage } from "@/pages/PlanDetailPage";
+import { ConfigPage } from "@/pages/ConfigPage";
 
 export function App() {
   return (
@@ -46,6 +47,7 @@ export function App() {
             <Route path="prs" element={<PRsPage />} />
             <Route path="exercises" element={<ExercisesPage />} />
             <Route path="ai/usage" element={<AIUsagePage />} />
+            <Route path="ai/config" element={<ConfigPage />} />
             <Route path="admin-users" element={<AdminUsersPage />} />
           </Route>
         </Routes>
