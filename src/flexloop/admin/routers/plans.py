@@ -29,9 +29,12 @@ from flexloop.admin.schemas.plans import (
     PlanAdminCreate,
     PlanAdminResponse,
     PlanAdminUpdate,
+    PlanDayAdminCreate,
+    PlanDayAdminResponse,
+    PlanDayAdminUpdate,
 )
 from flexloop.db.engine import get_session
-from flexloop.models.plan import ExerciseGroup, Plan, PlanDay
+from flexloop.models.plan import ExerciseGroup, Plan, PlanDay, PlanExercise
 
 router = APIRouter(prefix="/api/admin/plans", tags=["admin:plans"])
 
@@ -51,6 +54,106 @@ def _plan_query():
         .selectinload(PlanDay.exercise_groups)
         .selectinload(ExerciseGroup.exercises)
     )
+
+
+def _day_query(plan_id: int, day_number: int):
+    """Eager-loaded SELECT for a single day on a specific plan."""
+    return (
+        select(PlanDay)
+        .options(
+            selectinload(PlanDay.exercise_groups).selectinload(ExerciseGroup.exercises)
+        )
+        .where(PlanDay.plan_id == plan_id, PlanDay.day_number == day_number)
+    )
+
+
+async def _apply_groups_to_day(
+    db: AsyncSession, day: PlanDay, groups_payload: list
+) -> None:
+    """Add a list of ExerciseGroupAdminCreate payloads onto a clean day.
+
+    Uses explicit db.add() + flush per group (rather than relationship
+    .append()) to avoid triggering lazy-load IO outside greenlet context.
+    Caller is responsible for clearing the day's existing groups/exercises
+    first (for PUT) — this helper only adds.
+    """
+    for group_payload in groups_payload:
+        group = ExerciseGroup(
+            plan_day_id=day.id,
+            group_type=group_payload.group_type,
+            order=group_payload.order,
+            rest_after_group_sec=group_payload.rest_after_group_sec,
+        )
+        db.add(group)
+        await db.flush()  # populates group.id for PlanExercise FK
+        for ex_payload in group_payload.exercises:
+            plan_ex = PlanExercise(
+                plan_day_id=day.id,
+                exercise_group_id=group.id,
+                exercise_id=ex_payload.exercise_id,
+                order=ex_payload.order,
+                sets=ex_payload.sets,
+                reps=ex_payload.reps,
+                weight=ex_payload.weight,
+                rpe_target=ex_payload.rpe_target,
+                sets_json=(
+                    [s.model_dump() for s in ex_payload.sets_json]
+                    if ex_payload.sets_json
+                    else None
+                ),
+                notes=ex_payload.notes,
+            )
+            db.add(plan_ex)
+
+
+@router.post(
+    "/{plan_id}/days",
+    response_model=PlanDayAdminResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_plan_day(
+    plan_id: int,
+    payload: PlanDayAdminCreate,
+    db: AsyncSession = Depends(get_session),
+    _admin=Depends(require_admin),
+) -> PlanDay:
+    # Verify the plan exists (we don't need the eager-load here).
+    plan_result = await db.execute(select(Plan).where(Plan.id == plan_id))
+    plan = plan_result.scalar_one_or_none()
+    if plan is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="plan not found",
+        )
+
+    # Reject duplicate day_number — no auto-renumbering.
+    existing = await db.execute(
+        select(PlanDay).where(
+            PlanDay.plan_id == plan_id, PlanDay.day_number == payload.day_number
+        )
+    )
+    if existing.scalar_one_or_none() is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"day_number {payload.day_number} already exists on this plan",
+        )
+
+    day = PlanDay(
+        plan_id=plan_id,
+        day_number=payload.day_number,
+        label=payload.label,
+        focus=payload.focus,
+    )
+    db.add(day)
+    await db.flush()  # gives us day.id for the nested appends
+
+    await _apply_groups_to_day(db, day, payload.exercise_groups)
+
+    await db.commit()
+
+    # Re-query with the full eager-load for a clean response payload.
+    result = await db.execute(_day_query(plan_id, payload.day_number))
+    return result.scalar_one()
 
 
 @router.get("", response_model=PaginatedResponse[PlanAdminResponse])
