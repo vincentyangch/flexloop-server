@@ -156,6 +156,63 @@ async def add_plan_day(
     return result.scalar_one()
 
 
+@router.put(
+    "/{plan_id}/days/{day_number}",
+    response_model=PlanDayAdminResponse,
+)
+async def replace_plan_day(
+    plan_id: int,
+    day_number: int,
+    payload: PlanDayAdminUpdate,
+    db: AsyncSession = Depends(get_session),
+    _admin=Depends(require_admin),
+) -> PlanDay:
+    # Verify the plan exists separately from the day so we can return
+    # "plan not found" vs "day not found" accurately.
+    plan_result = await db.execute(select(Plan).where(Plan.id == plan_id))
+    plan = plan_result.scalar_one_or_none()
+    if plan is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="plan not found",
+        )
+
+    day_result = await db.execute(_day_query(plan_id, day_number))
+    day = day_result.scalar_one_or_none()
+    if day is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"day_number {day_number} not found on plan {plan_id}",
+        )
+
+    # Apply optional metadata updates.
+    if payload.label is not None:
+        day.label = payload.label
+    if payload.focus is not None:
+        day.focus = payload.focus
+
+    # Clear existing nested structure. Both collections have
+    # cascade="all, delete-orphan" on PlanDay, so clearing triggers deletes.
+    # We clear exercises first (child) then groups (parent) to avoid FK issues.
+    for group in list(day.exercise_groups):
+        for ex in list(group.exercises):
+            await db.delete(ex)
+    await db.flush()
+    for group in list(day.exercise_groups):
+        await db.delete(group)
+    await db.flush()
+
+    # Append new groups/exercises from the payload.
+    await _apply_groups_to_day(db, day, payload.exercise_groups)
+
+    await db.commit()
+
+    # Expire the day so the identity map re-fetches it fresh on re-query.
+    db.expire(day)
+    result = await db.execute(_day_query(plan_id, day_number))
+    return result.scalar_one()
+
+
 @router.get("", response_model=PaginatedResponse[PlanAdminResponse])
 async def list_plans(
     request: Request,
