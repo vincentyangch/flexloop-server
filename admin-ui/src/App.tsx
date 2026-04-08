@@ -10,6 +10,13 @@ import { DashboardPage } from "@/pages/DashboardPage";
 import { HealthPage } from "@/pages/HealthPage";
 import { ChangePasswordPage } from "@/pages/ChangePasswordPage";
 import { SessionsPage } from "@/pages/SessionsPage";
+import { UsersPage } from "@/pages/UsersPage";
+import { WorkoutsPage } from "@/pages/WorkoutsPage";
+import { MeasurementsPage } from "@/pages/MeasurementsPage";
+import { PRsPage } from "@/pages/PRsPage";
+import { ExercisesPage } from "@/pages/ExercisesPage";
+import { AIUsagePage } from "@/pages/AIUsagePage";
+import { AdminUsersPage } from "@/pages/AdminUsersPage";
 
 export function App() {
   return (
@@ -29,6 +36,13 @@ export function App() {
             <Route path="health" element={<HealthPage />} />
             <Route path="account/password" element={<ChangePasswordPage />} />
             <Route path="account/sessions" element={<SessionsPage />} />
+            <Route path="users" element={<UsersPage />} />
+            <Route path="workouts" element={<WorkoutsPage />} />
+            <Route path="measurements" element={<MeasurementsPage />} />
+            <Route path="prs" element={<PRsPage />} />
+            <Route path="exercises" element={<ExercisesPage />} />
+            <Route path="ai/usage" element={<AIUsagePage />} />
+            <Route path="admin-users" element={<AdminUsersPage />} />
           </Route>
         </Routes>
       </BrowserRouter>

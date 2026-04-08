@@ -26,6 +26,7 @@ import {
   ScrollText,
   Wrench,
   Activity,
+  ShieldUser,
 } from "lucide-react";
 
 type Item = {
@@ -48,16 +49,16 @@ const groups: Group[] = [
   {
     label: "User Data",
     items: [
-      { label: "Users", to: "/users", icon: Users, disabled: true },
+      { label: "Users", to: "/users", icon: Users },
       { label: "Plans", to: "/plans", icon: ClipboardList, disabled: true },
-      { label: "Workouts", to: "/workouts", icon: Dumbbell, disabled: true },
-      { label: "Measurements", to: "/measurements", icon: Ruler, disabled: true },
-      { label: "Personal Records", to: "/prs", icon: Trophy, disabled: true },
+      { label: "Workouts", to: "/workouts", icon: Dumbbell },
+      { label: "Measurements", to: "/measurements", icon: Ruler },
+      { label: "Personal Records", to: "/prs", icon: Trophy },
     ],
   },
   {
     label: "Catalog",
-    items: [{ label: "Exercises", to: "/exercises", icon: Library, disabled: true }],
+    items: [{ label: "Exercises", to: "/exercises", icon: Library }],
   },
   {
     label: "AI",
@@ -65,7 +66,7 @@ const groups: Group[] = [
       { label: "Config", to: "/ai/config", icon: Settings, disabled: true },
       { label: "Prompts", to: "/ai/prompts", icon: FileText, disabled: true },
       { label: "Playground", to: "/ai/playground", icon: FlaskConical, disabled: true },
-      { label: "Usage", to: "/ai/usage", icon: BarChart3, disabled: true },
+      { label: "Usage", to: "/ai/usage", icon: BarChart3 },
     ],
   },
   {
@@ -74,6 +75,12 @@ const groups: Group[] = [
       { label: "Backup & Restore", to: "/ops/backup", icon: HardDriveDownload, disabled: true },
       { label: "Logs", to: "/ops/logs", icon: ScrollText, disabled: true },
       { label: "Triggers", to: "/ops/triggers", icon: Wrench, disabled: true },
+    ],
+  },
+  {
+    label: "",
+    items: [
+      { label: "Admin Users", to: "/admin-users", icon: ShieldUser },
     ],
   },
 ];
