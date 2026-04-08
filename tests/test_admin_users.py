@@ -178,3 +178,51 @@ class TestCreateUser:
             json={"name": ""},  # missing required fields
         )
         assert res.status_code == 422
+
+
+class TestUpdateUser:
+    async def test_requires_auth(self, client: AsyncClient) -> None:
+        res = await client.put(
+            "/api/admin/users/1",
+            headers={"Origin": "http://localhost:5173"},
+            json={"name": "X"},
+        )
+        assert res.status_code == 401
+
+    async def test_partial_update(self, client: AsyncClient, db_session: AsyncSession) -> None:
+        cookies = await _make_admin_and_cookie(db_session)
+        users = await _seed_users(db_session, 1)
+        res = await client.put(
+            f"/api/admin/users/{users[0].id}",
+            cookies=cookies,
+            headers={"Origin": "http://localhost:5173"},
+            json={"name": "Renamed", "age": 99},
+        )
+        assert res.status_code == 200
+        body = res.json()
+        assert body["name"] == "Renamed"
+        assert body["age"] == 99
+        # Untouched fields preserved
+        assert body["gender"] == "other"
+
+    async def test_404_on_missing(self, client: AsyncClient, db_session: AsyncSession) -> None:
+        cookies = await _make_admin_and_cookie(db_session)
+        res = await client.put(
+            "/api/admin/users/99999",
+            cookies=cookies,
+            headers={"Origin": "http://localhost:5173"},
+            json={"name": "X"},
+        )
+        assert res.status_code == 404
+
+    async def test_empty_body_is_noop(self, client: AsyncClient, db_session: AsyncSession) -> None:
+        cookies = await _make_admin_and_cookie(db_session)
+        users = await _seed_users(db_session, 1)
+        res = await client.put(
+            f"/api/admin/users/{users[0].id}",
+            cookies=cookies,
+            headers={"Origin": "http://localhost:5173"},
+            json={},
+        )
+        assert res.status_code == 200
+        assert res.json()["name"] == "User0"

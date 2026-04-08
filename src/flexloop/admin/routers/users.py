@@ -86,3 +86,23 @@ async def create_user(
     await db.commit()
     await db.refresh(user)
     return user
+
+
+@router.put("/{user_id}", response_model=UserAdminResponse)
+async def update_user(
+    user_id: int,
+    payload: UserAdminUpdate,
+    db: AsyncSession = Depends(get_session),
+    _admin=Depends(require_admin),
+) -> User:
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="user not found")
+
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(user, field, value)
+
+    await db.commit()
+    await db.refresh(user)
+    return user
