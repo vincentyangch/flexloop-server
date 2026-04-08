@@ -19,6 +19,7 @@ from flexloop.admin.csrf import OriginCheckMiddleware
 from flexloop.admin.routers.auth import router as admin_auth_router
 from flexloop.admin.routers.health import router as admin_health_router
 from flexloop.admin.routers.measurements import router as admin_measurements_router
+from flexloop.admin.routers.prs import router as admin_prs_router
 from flexloop.admin.routers.users import router as admin_users_router
 from flexloop.admin.routers.workouts import router as admin_workouts_router
 from flexloop.db.engine import init_db
@@ -79,6 +80,7 @@ app.include_router(admin_health_router)
 app.include_router(admin_users_router)
 app.include_router(admin_workouts_router)
 app.include_router(admin_measurements_router)
+app.include_router(admin_prs_router)
 
 
 @app.get("/api/health")
