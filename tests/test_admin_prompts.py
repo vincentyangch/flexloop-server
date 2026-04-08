@@ -250,3 +250,84 @@ class TestCreateVersionEndpoint:
             headers={"Origin": ORIGIN},
         )
         assert res.status_code == 404
+
+
+class TestSetActiveEndpoint:
+    async def test_requires_auth(
+        self, client: AsyncClient, prompts_tmp_dir: Path
+    ) -> None:
+        res = await client.put(
+            "/api/admin/prompts/plan_generation/active",
+            json={"version": "v1"},
+            headers={"Origin": ORIGIN},
+        )
+        assert res.status_code == 401
+
+    async def test_sets_default_provider(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        prompts_tmp_dir: Path,
+    ) -> None:
+        cookies = await _make_admin_and_cookie(db_session)
+        res = await client.put(
+            "/api/admin/prompts/plan_generation/active",
+            json={"version": "v1"},
+            cookies=cookies,
+            headers={"Origin": ORIGIN},
+        )
+        assert res.status_code == 200
+        manifest = json.loads(
+            (prompts_tmp_dir / "manifest.json").read_text()
+        )
+        assert manifest["plan_generation"]["default"] == "v1"
+
+    async def test_explicit_provider(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        prompts_tmp_dir: Path,
+    ) -> None:
+        cookies = await _make_admin_and_cookie(db_session)
+        res = await client.put(
+            "/api/admin/prompts/plan_generation/active",
+            json={"version": "v1", "provider": "anthropic"},
+            cookies=cookies,
+            headers={"Origin": ORIGIN},
+        )
+        assert res.status_code == 200
+        manifest = json.loads(
+            (prompts_tmp_dir / "manifest.json").read_text()
+        )
+        assert manifest["plan_generation"]["default"] == "v2"
+        assert manifest["plan_generation"]["anthropic"] == "v1"
+
+    async def test_404_missing_version(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        prompts_tmp_dir: Path,
+    ) -> None:
+        cookies = await _make_admin_and_cookie(db_session)
+        res = await client.put(
+            "/api/admin/prompts/plan_generation/active",
+            json={"version": "v99"},
+            cookies=cookies,
+            headers={"Origin": ORIGIN},
+        )
+        assert res.status_code == 404
+
+    async def test_400_invalid_provider(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        prompts_tmp_dir: Path,
+    ) -> None:
+        cookies = await _make_admin_and_cookie(db_session)
+        res = await client.put(
+            "/api/admin/prompts/plan_generation/active",
+            json={"version": "v1", "provider": "../etc"},
+            cookies=cookies,
+            headers={"Origin": ORIGIN},
+        )
+        assert res.status_code == 400
