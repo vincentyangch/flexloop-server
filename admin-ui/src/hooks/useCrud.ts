@@ -21,7 +21,8 @@ import {
 } from "@tanstack/react-query";
 
 import { api } from "@/lib/api";
-import { ListParams, PaginatedResponse, listParamsToQuery } from "@/lib/crud";
+import { listParamsToQuery } from "@/lib/crud";
+import type { ListParams, PaginatedResponse } from "@/lib/crud";
 
 type ResourceKey = string;
 
