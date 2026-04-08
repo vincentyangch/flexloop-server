@@ -68,3 +68,55 @@ class TestListPromptsEndpoint:
         assert by_name["plan_generation"]["active_by_provider"] == {"default": "v2"}
         assert "chat" in by_name
         assert by_name["chat"]["versions"] == ["v1"]
+
+
+class TestGetVersion:
+    async def test_requires_auth(
+        self, client: AsyncClient, prompts_tmp_dir: Path
+    ) -> None:
+        res = await client.get("/api/admin/prompts/plan_generation/versions/v1")
+        assert res.status_code == 401
+
+    async def test_returns_content_and_variables(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        prompts_tmp_dir: Path,
+    ) -> None:
+        cookies = await _make_admin_and_cookie(db_session)
+        res = await client.get(
+            "/api/admin/prompts/plan_generation/versions/v2",
+            cookies=cookies,
+        )
+        assert res.status_code == 200
+        body = res.json()
+        assert body["name"] == "plan_generation"
+        assert body["version"] == "v2"
+        assert body["content"] == "v2 {{user_name}}"
+        assert body["variables"] == ["user_name"]
+
+    async def test_404_when_missing(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        prompts_tmp_dir: Path,
+    ) -> None:
+        cookies = await _make_admin_and_cookie(db_session)
+        res = await client.get(
+            "/api/admin/prompts/plan_generation/versions/v99",
+            cookies=cookies,
+        )
+        assert res.status_code == 404
+
+    async def test_400_on_invalid_name(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        prompts_tmp_dir: Path,
+    ) -> None:
+        cookies = await _make_admin_and_cookie(db_session)
+        res = await client.get(
+            "/api/admin/prompts/Bad-Name/versions/v1",
+            cookies=cookies,
+        )
+        assert res.status_code == 400
