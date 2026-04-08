@@ -294,6 +294,7 @@ class TestUpdatePlan:
         # Unrelated fields untouched.
         assert body["split_type"] == "upper_lower"
         assert body["cycle_length"] == 4
+        assert body["days"] == []
 
     async def test_rejects_days_field(
         self, client: AsyncClient, db_session: AsyncSession

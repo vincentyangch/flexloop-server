@@ -151,7 +151,7 @@ async def update_plan(
     db: AsyncSession = Depends(get_session),
     _admin=Depends(require_admin),
 ) -> Plan:
-    result = await db.execute(select(Plan).where(Plan.id == plan_id))
+    result = await db.execute(_plan_query().where(Plan.id == plan_id))
     plan = result.scalar_one_or_none()
     if plan is None:
         raise HTTPException(
@@ -163,5 +163,5 @@ async def update_plan(
         setattr(plan, field, value)
 
     await db.commit()
-    result = await db.execute(_plan_query().where(Plan.id == plan.id))
-    return result.scalar_one()
+    await db.refresh(plan)
+    return plan
