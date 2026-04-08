@@ -439,3 +439,25 @@ class TestTestConnection:
             await db_session.execute(select(AdminAuditLog))
         ).all()
         assert len(entries) == 0
+
+    async def test_unknown_provider_returns_error(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        """`create_adapter` raises ValueError for unknown providers — the
+        handler must catch it and return {status: 'error', ...}, not a 500.
+        """
+        _, cookies = await _make_admin_and_cookie(db_session)
+        await _seed_default_app_settings(db_session)
+        res = await client.post(
+            "/api/admin/config/test-connection",
+            json={"provider": "this_provider_does_not_exist_xyz"},
+            cookies=cookies,
+            headers={"Origin": ORIGIN},
+        )
+        assert res.status_code == 200
+        body = res.json()
+        assert body["status"] == "error"
+        assert body["response_text"] is None
+        assert "this_provider_does_not_exist_xyz" in body["error"]
+        assert isinstance(body["latency_ms"], int)
+        assert body["latency_ms"] >= 0

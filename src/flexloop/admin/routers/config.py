@@ -77,7 +77,8 @@ class TestConnectionRequest(BaseModel):
     """POST /api/admin/config/test-connection payload.
 
     All fields optional — omitted fields fall back to the currently saved
-    DB value. This lets the admin test a new config without saving first.
+    DB value, EXCEPT ``max_tokens`` which defaults to 10 (test calls should
+    be cheap; override explicitly if you need a longer response).
     """
     model_config = ConfigDict(extra="forbid")
 
@@ -255,17 +256,18 @@ async def test_connection(
     temperature = (
         payload.temperature if payload.temperature is not None else row.ai_temperature
     )
+    # Cap to 10 for cheap test calls unless explicitly overridden.
+    # (Not row.ai_max_tokens — test-connection is a ping, not a full generation.)
     max_tokens = payload.max_tokens if payload.max_tokens is not None else 10
-
-    adapter = create_adapter(
-        provider=provider,
-        model=model,
-        api_key=api_key,
-        base_url=base_url,
-    )
 
     start = time.perf_counter()
     try:
+        adapter = create_adapter(
+            provider=provider,
+            model=model,
+            api_key=api_key,
+            base_url=base_url,
+        )
         llm_response = await asyncio.wait_for(
             adapter.generate(
                 system_prompt=_TEST_CONNECTION_SYSTEM,
