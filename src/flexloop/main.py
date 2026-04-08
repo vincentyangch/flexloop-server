@@ -17,6 +17,7 @@ from fastapi.staticfiles import StaticFiles
 
 from flexloop.admin.csrf import OriginCheckMiddleware
 from flexloop.admin.routers.auth import router as admin_auth_router
+from flexloop.admin.routers.exercises import router as admin_exercises_router
 from flexloop.admin.routers.health import router as admin_health_router
 from flexloop.admin.routers.measurements import router as admin_measurements_router
 from flexloop.admin.routers.prs import router as admin_prs_router
@@ -81,6 +82,7 @@ app.include_router(admin_users_router)
 app.include_router(admin_workouts_router)
 app.include_router(admin_measurements_router)
 app.include_router(admin_prs_router)
+app.include_router(admin_exercises_router)
 
 
 @app.get("/api/health")
