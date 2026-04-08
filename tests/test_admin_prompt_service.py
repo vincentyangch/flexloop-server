@@ -156,3 +156,93 @@ class TestCreateVersion:
     def test_missing_prompt_raises(self, prompts_dir: Path) -> None:
         with pytest.raises(NotFoundError):
             create_version(prompts_dir, "nonexistent")
+
+
+class TestSetActive:
+    def test_updates_manifest(self, prompts_dir: Path) -> None:
+        set_active(prompts_dir, "plan_generation", "v1")
+        manifest = json.loads((prompts_dir / "manifest.json").read_text())
+        assert manifest["plan_generation"]["default"] == "v1"
+
+    def test_per_provider(self, prompts_dir: Path) -> None:
+        set_active(prompts_dir, "plan_generation", "v1", provider="anthropic")
+        manifest = json.loads((prompts_dir / "manifest.json").read_text())
+        # Default is unchanged
+        assert manifest["plan_generation"]["default"] == "v2"
+        assert manifest["plan_generation"]["anthropic"] == "v1"
+
+    def test_version_must_exist(self, prompts_dir: Path) -> None:
+        with pytest.raises(NotFoundError):
+            set_active(prompts_dir, "plan_generation", "v99")
+
+    def test_invalid_provider_rejected(self, prompts_dir: Path) -> None:
+        with pytest.raises(InvalidNameError):
+            set_active(prompts_dir, "plan_generation", "v1", provider="../evil")
+
+
+class TestDeleteVersion:
+    def test_deletes_non_active(self, prompts_dir: Path) -> None:
+        # plan_generation has v1 and v2; v2 is active. Delete v1.
+        delete_version(prompts_dir, "plan_generation", "v1")
+        assert not (prompts_dir / "plan_generation" / "v1.md").exists()
+        assert (prompts_dir / "plan_generation" / "v2.md").exists()
+
+    def test_refuses_active_version(self, prompts_dir: Path) -> None:
+        with pytest.raises(ConflictError, match="still active"):
+            delete_version(prompts_dir, "plan_generation", "v2")
+
+    def test_refuses_last_version(self, prompts_dir: Path) -> None:
+        # chat has only v1 (and it's active). Set active to v1 for default,
+        # then try to delete a non-existent v2 → NotFoundError first, so
+        # we build a fresh case.
+        with pytest.raises(ConflictError):
+            delete_version(prompts_dir, "chat", "v1")
+
+    def test_refuses_active_in_nondefault_provider(
+        self, tmp_path: Path
+    ) -> None:
+        (tmp_path / "foo").mkdir()
+        (tmp_path / "foo" / "v1.md").write_text("one")
+        (tmp_path / "foo" / "v2.md").write_text("two")
+        (tmp_path / "manifest.json").write_text(
+            json.dumps({"foo": {"default": "v2", "anthropic": "v1"}})
+        )
+        with pytest.raises(ConflictError, match="still active"):
+            delete_version(tmp_path, "foo", "v1")
+
+
+class TestDiffVersions:
+    def test_unified_diff_output(self, prompts_dir: Path) -> None:
+        diff = diff_versions(prompts_dir, "plan_generation", "v1", "v2")
+        assert "--- v1" in diff
+        assert "+++ v2" in diff
+        assert "-v1 content for plan_generation" in diff
+        assert "+v2 content {{user_name}}" in diff
+
+    def test_same_version_empty_diff(self, prompts_dir: Path) -> None:
+        diff = diff_versions(prompts_dir, "plan_generation", "v1", "v1")
+        assert diff == ""
+
+    def test_missing_from_version_raises(self, prompts_dir: Path) -> None:
+        with pytest.raises(NotFoundError):
+            diff_versions(prompts_dir, "plan_generation", "v99", "v1")
+
+
+class TestExtractVariables:
+    def test_finds_variables(self) -> None:
+        assert extract_variables("Hello {{user_name}}, your goal is {{goal}}") == [
+            "goal",
+            "user_name",
+        ]
+
+    def test_deduplicates(self) -> None:
+        assert extract_variables("{{a}} and {{a}} and {{b}}") == ["a", "b"]
+
+    def test_empty_string(self) -> None:
+        assert extract_variables("") == []
+
+    def test_ignores_non_word_chars(self) -> None:
+        # {{ hello }} with spaces is NOT a variable match
+        assert extract_variables("{{ hello }}") == []
+        # {{nested.attr}} is not supported (dots aren't word chars)
+        assert extract_variables("{{nested.attr}}") == []
