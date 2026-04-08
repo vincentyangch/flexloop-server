@@ -16,6 +16,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from flexloop.admin.csrf import OriginCheckMiddleware
+from flexloop.config import settings as _app_settings
 from flexloop.admin.routers.admin_users import router as admin_admin_users_router
 from flexloop.admin.routers.ai_usage import router as admin_ai_usage_router
 from flexloop.admin.routers.auth import router as admin_auth_router
@@ -56,13 +57,13 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Add CSRF middleware BEFORE routers so it runs on every /api/admin/* request.
-# For Phase 1: fixed allowed-origins list. Phase 4 will replace this callable
-# with one that reads from app_settings.admin_allowed_origins.
-_PHASE1_ALLOWED_ORIGINS = ["http://localhost:5173", "http://localhost:8000"]
+# CSRF middleware BEFORE routers so it runs on every /api/admin/* request.
+# The allowed-origins list is hot-reloadable: refresh_settings_from_db
+# mutates the ``settings`` singleton on startup and after every config
+# update, so this getter reflects the latest DB value without restart.
 app.add_middleware(
     OriginCheckMiddleware,
-    allowed_origins_getter=lambda: _PHASE1_ALLOWED_ORIGINS,
+    allowed_origins_getter=lambda: _app_settings.admin_allowed_origins,
 )
 
 app.include_router(profiles_router)
