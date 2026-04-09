@@ -22,6 +22,7 @@ import { PlanDetailPage } from "@/pages/PlanDetailPage";
 import { ConfigPage } from "@/pages/ConfigPage";
 import { PromptsPage } from "@/pages/PromptsPage";
 import { PlaygroundPage } from "@/pages/PlaygroundPage";
+import { BackupPage } from "@/pages/BackupPage";
 
 export function App() {
   return (
@@ -53,6 +54,7 @@ export function App() {
             <Route path="ai/prompts" element={<PromptsPage />} />
             <Route path="ai/playground" element={<PlaygroundPage />} />
             <Route path="admin-users" element={<AdminUsersPage />} />
+            <Route path="ops/backup" element={<BackupPage />} />
           </Route>
         </Routes>
       </BrowserRouter>
