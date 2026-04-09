@@ -27,6 +27,7 @@ from flexloop.admin.routers.ai_usage import router as admin_ai_usage_router
 from flexloop.admin.routers.auth import router as admin_auth_router
 from flexloop.admin.routers.exercises import router as admin_exercises_router
 from flexloop.admin.routers.health import router as admin_health_router
+from flexloop.admin.routers.logs import router as admin_logs_router
 from flexloop.admin.routers.measurements import router as admin_measurements_router
 from flexloop.admin.routers.plans import router as admin_plans_router
 from flexloop.admin.routers.prs import router as admin_prs_router
@@ -87,6 +88,7 @@ app.include_router(warmup_router)
 app.include_router(deload_router)
 app.include_router(admin_auth_router)
 app.include_router(admin_health_router)
+app.include_router(admin_logs_router)
 app.include_router(admin_users_router)
 app.include_router(admin_workouts_router)
 app.include_router(admin_measurements_router)
