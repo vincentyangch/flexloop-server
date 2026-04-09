@@ -106,3 +106,49 @@ class LLMAdapter(ABC):
     ) -> ToolUseResponse:
         """Send a request with tool definitions. Override in adapters that support tool use."""
         raise NotImplementedError(f"{self.__class__.__name__} does not support tool_use()")
+
+    async def stream_generate(
+        self, system_prompt: str, user_prompt: str, temperature: float = 0.7,
+        max_tokens: int = 2000,
+    ):
+        """Stream ``generate`` output as a sequence of ``StreamEvent``.
+
+        Default implementation for adapters that don't support true
+        streaming: runs ``generate`` to completion, then yields the full
+        content as a single ``content`` event, followed by a ``usage``
+        event with latency, followed by a terminal ``done`` event.
+
+        Adapters that DO support streaming (e.g. OpenAIAdapter) override
+        this to yield per-delta content events as bytes arrive. The event
+        shape and event ordering (``content*, usage, done``) are the same
+        in both cases so frontends only need one code path.
+
+        Errors raised by ``generate`` are caught and surfaced as an
+        ``error`` event followed by a terminal ``done`` event — callers
+        never see a raised exception from this generator.
+        """
+        import time as _time
+
+        start = _time.perf_counter()
+        try:
+            response = await self.generate(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+        except Exception as exc:  # noqa: BLE001
+            yield StreamEvent(type="error", error=str(exc))
+            yield StreamEvent(type="done")
+            return
+
+        latency_ms = int((_time.perf_counter() - start) * 1000)
+        yield StreamEvent(type="content", delta=response.content)
+        yield StreamEvent(
+            type="usage",
+            input_tokens=response.input_tokens,
+            output_tokens=response.output_tokens,
+            cache_read_tokens=response.cache_read_tokens,
+            latency_ms=latency_ms,
+        )
+        yield StreamEvent(type="done")
