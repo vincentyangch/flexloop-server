@@ -3,17 +3,23 @@ from __future__ import annotations
 
 from datetime import date
 
-from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from flexloop.admin.auth import require_admin
-from flexloop.admin.pricing import ModelPricingValues, compute_cost, get_model_pricing
+from flexloop.admin.pricing import (
+    PRICING,
+    ModelPricingValues,
+    compute_cost,
+    get_model_pricing,
+)
 from flexloop.config import settings
 from flexloop.db.engine import get_session
 from flexloop.models.admin_user import AdminUser
 from flexloop.models.ai import AIUsage
+from flexloop.models.model_pricing import ModelPricing
 
 router = APIRouter(prefix="/api/admin/ai", tags=["admin:ai-dashboard"])
 
@@ -52,6 +58,36 @@ class StatsResponse(BaseModel):
     last_12_months: list[ChartPoint]
     rows: list[UsageRow]
     assumed_model: str
+
+
+class PricingDbEntry(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    model_name: str
+    input_per_million: float
+    output_per_million: float
+    cache_read_per_million: float | None
+    cache_write_per_million: float | None
+
+
+class PricingStaticEntry(BaseModel):
+    model_name: str
+    input_per_million: float
+    output_per_million: float
+
+
+class PricingListResponse(BaseModel):
+    db_entries: list[PricingDbEntry]
+    static_entries: list[PricingStaticEntry]
+
+
+class PricingUpsert(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    input_per_million: float = Field(..., ge=0)
+    output_per_million: float = Field(..., ge=0)
+    cache_read_per_million: float | None = Field(None, ge=0)
+    cache_write_per_million: float | None = Field(None, ge=0)
 
 
 def _current_month_str() -> str:
@@ -198,3 +234,97 @@ async def get_usage_stats(
         rows=rows,
         assumed_model=settings.ai_model,
     )
+
+
+@router.get("/pricing", response_model=PricingListResponse)
+async def list_pricing(
+    db: AsyncSession = Depends(get_session),
+    _admin: AdminUser = Depends(require_admin),
+) -> PricingListResponse:
+    rows = (await db.execute(select(ModelPricing))).scalars().all()
+    db_entries = [
+        PricingDbEntry(
+            model_name=row.model_name,
+            input_per_million=row.input_per_million,
+            output_per_million=row.output_per_million,
+            cache_read_per_million=row.cache_read_per_million,
+            cache_write_per_million=row.cache_write_per_million,
+        )
+        for row in rows
+    ]
+    static_entries = [
+        PricingStaticEntry(
+            model_name=model_name,
+            input_per_million=values["input"],
+            output_per_million=values["output"],
+        )
+        for model_name, values in sorted(PRICING.items())
+    ]
+    return PricingListResponse(
+        db_entries=db_entries,
+        static_entries=static_entries,
+    )
+
+
+@router.put("/pricing/{model_name}", response_model=PricingDbEntry)
+async def upsert_pricing(
+    model_name: str,
+    payload: PricingUpsert,
+    db: AsyncSession = Depends(get_session),
+    _admin: AdminUser = Depends(require_admin),
+) -> PricingDbEntry:
+    if not model_name or any(char in model_name for char in "/\\"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="invalid model_name",
+        )
+
+    existing = (
+        await db.execute(
+            select(ModelPricing).where(ModelPricing.model_name == model_name)
+        )
+    ).scalar_one_or_none()
+
+    if existing is None:
+        row = ModelPricing(
+            model_name=model_name,
+            input_per_million=payload.input_per_million,
+            output_per_million=payload.output_per_million,
+            cache_read_per_million=payload.cache_read_per_million,
+            cache_write_per_million=payload.cache_write_per_million,
+        )
+        db.add(row)
+    else:
+        existing.input_per_million = payload.input_per_million
+        existing.output_per_million = payload.output_per_million
+        existing.cache_read_per_million = payload.cache_read_per_million
+        existing.cache_write_per_million = payload.cache_write_per_million
+        row = existing
+
+    await db.commit()
+    await db.refresh(row)
+    return PricingDbEntry(
+        model_name=row.model_name,
+        input_per_million=row.input_per_million,
+        output_per_million=row.output_per_million,
+        cache_read_per_million=row.cache_read_per_million,
+        cache_write_per_million=row.cache_write_per_million,
+    )
+
+
+@router.delete("/pricing/{model_name}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_pricing(
+    model_name: str,
+    db: AsyncSession = Depends(get_session),
+    _admin: AdminUser = Depends(require_admin),
+) -> None:
+    existing = (
+        await db.execute(
+            select(ModelPricing).where(ModelPricing.model_name == model_name)
+        )
+    ).scalar_one_or_none()
+    if existing is None:
+        return None
+
+    await db.delete(existing)
+    await db.commit()
