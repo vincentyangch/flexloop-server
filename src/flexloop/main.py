@@ -31,6 +31,7 @@ from flexloop.admin.routers.logs import router as admin_logs_router
 from flexloop.admin.routers.measurements import router as admin_measurements_router
 from flexloop.admin.routers.plans import router as admin_plans_router
 from flexloop.admin.routers.prs import router as admin_prs_router
+from flexloop.admin.routers.triggers import router as admin_triggers_router
 from flexloop.admin.routers.users import router as admin_users_router
 from flexloop.admin.routers.workouts import router as admin_workouts_router
 from flexloop.db.engine import init_db
@@ -102,6 +103,7 @@ app.include_router(admin_admin_users_router)
 app.include_router(admin_config_router)
 app.include_router(admin_prompts_router)
 app.include_router(admin_playground_router)
+app.include_router(admin_triggers_router)
 
 
 @app.get("/api/health")
