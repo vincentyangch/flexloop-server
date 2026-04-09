@@ -74,7 +74,7 @@ const groups: Group[] = [
     items: [
       { label: "Backup & Restore", to: "/ops/backup", icon: HardDriveDownload },
       { label: "Logs", to: "/ops/logs", icon: ScrollText },
-      { label: "Triggers", to: "/ops/triggers", icon: Wrench, disabled: true },
+      { label: "Triggers", to: "/ops/triggers", icon: Wrench },
     ],
   },
   {
