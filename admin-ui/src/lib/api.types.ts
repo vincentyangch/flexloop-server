@@ -1289,6 +1289,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/playground/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Run Playground */
+        post: operations["run_playground_api_admin_playground_run_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/playground/templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Templates */
+        get: operations["list_templates_api_admin_playground_templates_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/playground/render": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Render Template */
+        post: operations["render_template_api_admin_playground_render_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -2381,6 +2432,57 @@ export interface components {
             cycle_length?: number | null;
             /** Days */
             days?: components["schemas"]["PlanDayCreate"][] | null;
+        };
+        /** PlaygroundRenderRequest */
+        PlaygroundRenderRequest: {
+            /** Template Name */
+            template_name: string;
+            /** Variables */
+            variables: {
+                [key: string]: string;
+            };
+        };
+        /** PlaygroundRenderResponse */
+        PlaygroundRenderResponse: {
+            /** Template Name */
+            template_name: string;
+            /** Version */
+            version: string;
+            /** Rendered */
+            rendered: string;
+        };
+        /** PlaygroundRunRequest */
+        PlaygroundRunRequest: {
+            /** System Prompt */
+            system_prompt: string;
+            /** User Prompt */
+            user_prompt: string;
+            /** Temperature */
+            temperature?: number | null;
+            /** Max Tokens */
+            max_tokens?: number | null;
+            /** Provider Override */
+            provider_override?: string | null;
+            /** Model Override */
+            model_override?: string | null;
+            /** Api Key Override */
+            api_key_override?: string | null;
+            /** Base Url Override */
+            base_url_override?: string | null;
+        };
+        /** PlaygroundTemplate */
+        PlaygroundTemplate: {
+            /** Name */
+            name: string;
+            /** Active Version */
+            active_version: string;
+            /** Variables */
+            variables: string[];
+        };
+        /** PlaygroundTemplatesResponse */
+        PlaygroundTemplatesResponse: {
+            /** Templates */
+            templates: components["schemas"]["PlaygroundTemplate"][];
         };
         /** PromptInfoResponse */
         PromptInfoResponse: {
@@ -6348,6 +6450,92 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DiffResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_playground_api_admin_playground_run_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlaygroundRunRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_templates_api_admin_playground_templates_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaygroundTemplatesResponse"];
+                };
+            };
+        };
+    };
+    render_template_api_admin_playground_render_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlaygroundRenderRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaygroundRenderResponse"];
                 };
             };
             /** @description Validation Error */
