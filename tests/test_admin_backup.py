@@ -62,3 +62,33 @@ class TestCreateBackup:
         res2 = await client.get("/api/admin/backups", cookies=cookies)
         assert len(res2.json()) >= 1
 
+
+
+class TestDownloadBackup:
+    async def test_auth(self, client: AsyncClient) -> None:
+        assert (await client.get("/api/admin/backups/x.db/download")).status_code == 401
+
+    async def test_download(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        cookies = await _cookie(db_session)
+        res = await client.post(
+            "/api/admin/backups", cookies=cookies, headers=ORIGIN,
+        )
+        filename = res.json()["filename"]
+
+        res2 = await client.get(
+            f"/api/admin/backups/{filename}/download", cookies=cookies,
+        )
+        assert res2.status_code == 200
+        assert res2.headers["content-type"] == "application/octet-stream"
+        assert len(res2.content) > 0
+
+    async def test_download_not_found(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        cookies = await _cookie(db_session)
+        res = await client.get(
+            "/api/admin/backups/nonexistent.db/download", cookies=cookies,
+        )
+        assert res.status_code == 404

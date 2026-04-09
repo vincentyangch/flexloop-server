@@ -89,3 +89,20 @@ async def create_backup(
         "size_bytes": info.size_bytes,
         "created_at": info.created_at,
     }
+
+
+@router.get("/{filename}/download")
+async def download_backup(
+    filename: str,
+    _admin=Depends(require_admin),
+) -> FileResponse:
+    _validate_filename(filename)
+    svc = _get_backup_service()
+    filepath = svc.backup_dir / filename
+    if not filepath.exists():
+        raise HTTPException(404, "backup not found")
+    return FileResponse(
+        filepath,
+        media_type="application/octet-stream",
+        filename=filename,
+    )
