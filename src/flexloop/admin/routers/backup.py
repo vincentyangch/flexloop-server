@@ -106,3 +106,44 @@ async def download_backup(
         media_type="application/octet-stream",
         filename=filename,
     )
+
+
+@router.post("/upload", response_model=BackupResponse, status_code=201)
+async def upload_backup(
+    file: UploadFile,
+    db: AsyncSession = Depends(get_session),
+    admin=Depends(require_admin),
+) -> dict:
+    filename = file.filename or "upload.db"
+    _validate_filename(filename)
+
+    svc = _get_backup_service()
+    dest = svc.backup_dir / filename
+    if dest.exists():
+        raise HTTPException(409, "backup with this filename already exists")
+
+    total = 0
+    with open(dest, "wb") as f:
+        while chunk := await file.read(64 * 1024):
+            total += len(chunk)
+            if total > _MAX_UPLOAD_BYTES:
+                dest.unlink(missing_ok=True)
+                raise HTTPException(413, "file too large (max 200 MB)")
+            f.write(chunk)
+
+    stat = dest.stat()
+    await write_audit_log(
+        db,
+        admin_user_id=admin.id,
+        action="backup_upload",
+        target_type="backup",
+        target_id=filename,
+        after={"size_bytes": stat.st_size},
+    )
+    await db.commit()
+
+    return {
+        "filename": filename,
+        "size_bytes": stat.st_size,
+        "created_at": datetime.fromtimestamp(stat.st_mtime),
+    }

@@ -92,3 +92,65 @@ class TestDownloadBackup:
             "/api/admin/backups/nonexistent.db/download", cookies=cookies,
         )
         assert res.status_code == 404
+
+
+class TestUploadBackup:
+    async def test_auth(self, client: AsyncClient) -> None:
+        assert (await client.post("/api/admin/backups/upload", headers=ORIGIN)).status_code == 401
+
+    async def test_upload(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        cookies = await _cookie(db_session)
+        fake_db = b"SQLite format 3\x00" + b"\x00" * 100
+        res = await client.post(
+            "/api/admin/backups/upload",
+            cookies=cookies,
+            headers=ORIGIN,
+            files={"file": ("my_backup.db", fake_db, "application/octet-stream")},
+        )
+        assert res.status_code == 201
+        assert res.json()["filename"] == "my_backup.db"
+
+        res2 = await client.get("/api/admin/backups", cookies=cookies)
+        filenames = [b["filename"] for b in res2.json()]
+        assert "my_backup.db" in filenames
+
+    async def test_upload_duplicate(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        cookies = await _cookie(db_session)
+        fake_db = b"SQLite format 3\x00" + b"\x00" * 100
+        await client.post(
+            "/api/admin/backups/upload",
+            cookies=cookies, headers=ORIGIN,
+            files={"file": ("dup.db", fake_db, "application/octet-stream")},
+        )
+        res = await client.post(
+            "/api/admin/backups/upload",
+            cookies=cookies, headers=ORIGIN,
+            files={"file": ("dup.db", fake_db, "application/octet-stream")},
+        )
+        assert res.status_code == 409
+
+    async def test_upload_invalid_extension(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        cookies = await _cookie(db_session)
+        res = await client.post(
+            "/api/admin/backups/upload",
+            cookies=cookies, headers=ORIGIN,
+            files={"file": ("bad.txt", b"hello", "application/octet-stream")},
+        )
+        assert res.status_code == 422
+
+    async def test_upload_path_traversal(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        cookies = await _cookie(db_session)
+        res = await client.post(
+            "/api/admin/backups/upload",
+            cookies=cookies, headers=ORIGIN,
+            files={"file": ("../evil.db", b"x", "application/octet-stream")},
+        )
+        assert res.status_code == 422
