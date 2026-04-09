@@ -73,7 +73,7 @@ const groups: Group[] = [
     label: "Operations",
     items: [
       { label: "Backup & Restore", to: "/ops/backup", icon: HardDriveDownload },
-      { label: "Logs", to: "/ops/logs", icon: ScrollText, disabled: true },
+      { label: "Logs", to: "/ops/logs", icon: ScrollText },
       { label: "Triggers", to: "/ops/triggers", icon: Wrench, disabled: true },
     ],
   },
