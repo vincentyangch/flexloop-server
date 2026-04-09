@@ -6,6 +6,7 @@
  * Save / New version / Set active / Diff actions.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import CodeMirror from "@uiw/react-codemirror";
@@ -29,6 +30,8 @@ function versionKey(name: string, version: string) {
 }
 
 export function PromptsPage() {
+  const navigate = useNavigate();
+
   const [selected, setSelected] = useState<{ name: string; version: string } | null>(
     null,
   );
@@ -196,6 +199,9 @@ export function PromptsPage() {
                   version: selected.version,
                 })}
                 onOpenDiff={() => setDiffOpen(true)}
+                onOpenInPlayground={() =>
+                  selected && navigate(`/ai/playground?template=${encodeURIComponent(selected.name)}`)
+                }
               />
               <div className="flex-1 min-h-0 overflow-hidden border rounded">
                 <CodeMirror

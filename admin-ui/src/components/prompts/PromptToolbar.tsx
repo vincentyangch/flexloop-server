@@ -18,6 +18,7 @@ type Props = {
   onNewVersion: () => void;
   onSetActive: () => void;
   onOpenDiff: () => void;
+  onOpenInPlayground: () => void;
 };
 
 export function PromptToolbar({
@@ -30,6 +31,7 @@ export function PromptToolbar({
   onNewVersion,
   onSetActive,
   onOpenDiff,
+  onOpenInPlayground,
 }: Props) {
   return (
     <div className="flex items-center gap-2 pb-2 border-b">
@@ -58,6 +60,9 @@ export function PromptToolbar({
       </Button>
       <Button size="sm" variant="ghost" onClick={onOpenDiff}>
         Diff…
+      </Button>
+      <Button size="sm" variant="ghost" onClick={onOpenInPlayground}>
+        Open in playground →
       </Button>
     </div>
   );
