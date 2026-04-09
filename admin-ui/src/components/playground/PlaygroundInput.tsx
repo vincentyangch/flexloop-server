@@ -2,16 +2,29 @@
  * Left-panel input for the playground.
  *
  * Phase 4c Chunk 3: free-form mode ONLY (system + user textareas).
- * Chunk 4 will add template mode with a dropdown + variable form +
- * rendered preview.
+ * Chunk 4: adds template mode with a dropdown + variable form + rendered preview.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { TemplateForm } from "@/components/playground/TemplateForm";
+import { api } from "@/lib/api";
+import type { components } from "@/lib/api.types";
+
+type TemplatesResponse = components["schemas"]["PlaygroundTemplatesResponse"];
+type RenderResponse = components["schemas"]["PlaygroundRenderResponse"];
 
 export type PlaygroundRunPayload = {
   system_prompt: string;
@@ -27,15 +40,53 @@ export type PlaygroundRunPayload = {
 type Props = {
   onSend: (payload: PlaygroundRunPayload) => void;
   isStreaming: boolean;
+  initialTemplate?: string | null;
 };
 
-export function PlaygroundInput({ onSend, isStreaming }: Props) {
+type Mode = "free" | "template";
+
+export function PlaygroundInput({ onSend, isStreaming, initialTemplate }: Props) {
+  const [mode, setMode] = useState<Mode>(initialTemplate ? "template" : "free");
+  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(
+    initialTemplate ?? null,
+  );
+  const [templateVars, setTemplateVars] = useState<Record<string, string>>({});
+
+  const templatesQuery = useQuery({
+    queryKey: ["admin", "playground", "templates"],
+    queryFn: () => api.get<TemplatesResponse>("/api/admin/playground/templates"),
+  });
+
   const [systemPrompt, setSystemPrompt] = useState("You are a helpful assistant.");
   const [userPrompt, setUserPrompt] = useState("");
   const [temperature, setTemperature] = useState<string>("");
   const [maxTokens, setMaxTokens] = useState<string>("");
   const [providerOverride, setProviderOverride] = useState("");
   const [modelOverride, setModelOverride] = useState("");
+
+  // When template selection or vars change, re-render the user_prompt
+  useEffect(() => {
+    if (mode !== "template" || !selectedTemplate) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.post<RenderResponse>(
+          "/api/admin/playground/render",
+          { template_name: selectedTemplate, variables: templateVars },
+        );
+        if (!cancelled) setUserPrompt(res.rendered);
+      } catch (e) {
+        if (!cancelled) setUserPrompt("(failed to render template)");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, selectedTemplate, templateVars]);
+
+  const selectedTemplateInfo = templatesQuery.data?.templates.find(
+    (t) => t.name === selectedTemplate,
+  );
 
   const canSend = userPrompt.trim().length > 0 && !isStreaming;
 
@@ -54,6 +105,23 @@ export function PlaygroundInput({ onSend, isStreaming }: Props) {
 
   return (
     <div className="space-y-4">
+      <div className="flex items-center gap-2 mb-4">
+        <Button
+          size="sm"
+          variant={mode === "free" ? "default" : "outline"}
+          onClick={() => setMode("free")}
+        >
+          Free-form
+        </Button>
+        <Button
+          size="sm"
+          variant={mode === "template" ? "default" : "outline"}
+          onClick={() => setMode("template")}
+        >
+          From template
+        </Button>
+      </div>
+
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Prompt</CardTitle>
@@ -80,6 +148,44 @@ export function PlaygroundInput({ onSend, isStreaming }: Props) {
           </div>
         </CardContent>
       </Card>
+
+      {mode === "template" && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Template</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="template_select">Template</Label>
+              <Select
+                value={selectedTemplate ?? ""}
+                onValueChange={(v) => {
+                  setSelectedTemplate(v);
+                  setTemplateVars({});
+                }}
+              >
+                <SelectTrigger id="template_select">
+                  <SelectValue placeholder="(select a template)" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(templatesQuery.data?.templates ?? []).map((t) => (
+                    <SelectItem key={t.name} value={t.name}>
+                      {t.name} ({t.active_version})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {selectedTemplateInfo && (
+              <TemplateForm
+                variables={selectedTemplateInfo.variables}
+                values={templateVars}
+                onChange={setTemplateVars}
+              />
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader className="pb-2">
