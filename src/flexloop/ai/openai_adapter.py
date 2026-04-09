@@ -145,6 +145,62 @@ class OpenAIAdapter(LLMAdapter):
                 logger.error(f"Both API formats failed. Chat: {e}, Responses: {e2}")
                 raise e2
 
+    async def stream_generate(
+        self, system_prompt: str, user_prompt: str, temperature: float = 0.7,
+        max_tokens: int = 2000,
+    ):
+        """True per-delta streaming for OpenAI / OpenAI-compatible providers.
+
+        Yields ``StreamEvent(type="content", delta=...)`` for each delta as
+        it arrives, followed by a terminal ``usage`` event and ``done``.
+        """
+        import time as _time
+
+        from flexloop.ai.base import StreamEvent
+
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
+        start = _time.perf_counter()
+        try:
+            stream = await self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                stream=True,
+                stream_options={"include_usage": True},
+            )
+            input_tokens = 0
+            output_tokens = 0
+            cache_read = 0
+            async for chunk in stream:
+                if chunk.choices:
+                    delta = chunk.choices[0].delta
+                    if delta and delta.content:
+                        yield StreamEvent(type="content", delta=delta.content)
+                if chunk.usage:
+                    input_tokens = chunk.usage.prompt_tokens or 0
+                    output_tokens = chunk.usage.completion_tokens or 0
+                    details = getattr(chunk.usage, "prompt_tokens_details", None)
+                    if details:
+                        cache_read = getattr(details, "cached_tokens", 0) or 0
+        except Exception as exc:  # noqa: BLE001
+            yield StreamEvent(type="error", error=str(exc))
+            yield StreamEvent(type="done")
+            return
+
+        latency_ms = int((_time.perf_counter() - start) * 1000)
+        yield StreamEvent(
+            type="usage",
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cache_read_tokens=cache_read,
+            latency_ms=latency_ms,
+        )
+        yield StreamEvent(type="done")
+
     async def chat(
         self, messages: list[dict], temperature: float = 0.7, max_tokens: int = 2000,
     ) -> LLMResponse:
