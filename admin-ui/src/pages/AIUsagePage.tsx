@@ -11,10 +11,16 @@
  */
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   ChartContainer,
@@ -24,12 +30,21 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
 import type { components } from "@/lib/api.types";
 
 type StatsResponse = components["schemas"]["StatsResponse"];
+type PricingDbEntry = components["schemas"]["PricingDbEntry"];
+type PricingListResponse = components["schemas"]["PricingListResponse"];
 type UsageRow = components["schemas"]["UsageRow"];
 
 type SortKey =
@@ -52,6 +67,8 @@ const chartConfig = {
     color: "var(--chart-2)",
   },
 } satisfies ChartConfig;
+
+const SANITY_THRESHOLD = 1_000;
 
 function formatCost(cost: number | null | undefined): string {
   if (cost === null || cost === undefined) return "—";
@@ -92,11 +109,19 @@ function sortRows(rows: UsageRow[], sortKey: SortKey, sortDir: SortDir): UsageRo
 }
 
 export function AIUsagePage() {
+  const queryClient = useQueryClient();
   const [monthFrom, setMonthFrom] = useState("");
   const [monthTo, setMonthTo] = useState("");
   const [userFilter, setUserFilter] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("month");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [pricingOpen, setPricingOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<PricingDbEntry | "new" | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editInput, setEditInput] = useState("");
+  const [editOutput, setEditOutput] = useState("");
+  const [editCacheRead, setEditCacheRead] = useState("");
+  const [editCacheWrite, setEditCacheWrite] = useState("");
 
   const statsQuery = useQuery({
     queryKey: [
@@ -127,6 +152,112 @@ export function AIUsagePage() {
     }
     setSortKey(nextKey);
     setSortDir("desc");
+  };
+
+  const pricingQuery = useQuery({
+    queryKey: ["admin", "ai", "pricing"],
+    queryFn: () => api.get<PricingListResponse>("/api/admin/ai/pricing"),
+    enabled: pricingOpen,
+  });
+
+  const upsertPricing = useMutation({
+    mutationFn: (args: {
+      model_name: string;
+      input_per_million: number;
+      output_per_million: number;
+      cache_read_per_million: number | null;
+      cache_write_per_million: number | null;
+    }) =>
+      api.put<PricingDbEntry>(
+        `/api/admin/ai/pricing/${encodeURIComponent(args.model_name)}`,
+        {
+          input_per_million: args.input_per_million,
+          output_per_million: args.output_per_million,
+          cache_read_per_million: args.cache_read_per_million,
+          cache_write_per_million: args.cache_write_per_million,
+        },
+      ),
+    onSuccess: () => {
+      toast.success("Pricing saved");
+      queryClient.invalidateQueries({ queryKey: ["admin", "ai", "pricing"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "ai", "usage", "stats"] });
+      setEditTarget(null);
+    },
+    onError: (error) =>
+      toast.error(error instanceof Error ? error.message : "Pricing save failed"),
+  });
+
+  const deletePricing = useMutation({
+    mutationFn: (modelName: string) =>
+      api.delete(`/api/admin/ai/pricing/${encodeURIComponent(modelName)}`),
+    onSuccess: () => {
+      toast.success("Pricing deleted");
+      queryClient.invalidateQueries({ queryKey: ["admin", "ai", "pricing"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "ai", "usage", "stats"] });
+    },
+    onError: (error) =>
+      toast.error(error instanceof Error ? error.message : "Pricing delete failed"),
+  });
+
+  const openEdit = (entry: PricingDbEntry | "new") => {
+    setEditTarget(entry);
+    if (entry === "new") {
+      setEditName("");
+      setEditInput("");
+      setEditOutput("");
+      setEditCacheRead("");
+      setEditCacheWrite("");
+      return;
+    }
+
+    setEditName(entry.model_name);
+    setEditInput(String(entry.input_per_million));
+    setEditOutput(String(entry.output_per_million));
+    setEditCacheRead(entry.cache_read_per_million?.toString() ?? "");
+    setEditCacheWrite(entry.cache_write_per_million?.toString() ?? "");
+  };
+
+  const submitEdit = () => {
+    const modelName = editName.trim();
+    const inputPerMillion = Number(editInput);
+    const outputPerMillion = Number(editOutput);
+    const cacheReadPerMillion =
+      editCacheRead === "" ? null : Number(editCacheRead);
+    const cacheWritePerMillion =
+      editCacheWrite === "" ? null : Number(editCacheWrite);
+
+    if (!modelName) {
+      toast.error("Model name is required");
+      return;
+    }
+    if (!Number.isFinite(inputPerMillion) || !Number.isFinite(outputPerMillion)) {
+      toast.error("Input and output prices must be valid numbers");
+      return;
+    }
+    if (
+      (cacheReadPerMillion !== null && !Number.isFinite(cacheReadPerMillion))
+      || (cacheWritePerMillion !== null && !Number.isFinite(cacheWritePerMillion))
+    ) {
+      toast.error("Cache prices must be valid numbers");
+      return;
+    }
+
+    if (
+      inputPerMillion > SANITY_THRESHOLD
+      || outputPerMillion > SANITY_THRESHOLD
+      || (cacheReadPerMillion !== null && cacheReadPerMillion > SANITY_THRESHOLD)
+      || (cacheWritePerMillion !== null && cacheWritePerMillion > SANITY_THRESHOLD)
+    ) {
+      toast.warning("These pricing values are unusually high. Saving anyway.");
+    }
+
+    upsertPricing.mutate({
+      model_name: modelName,
+      input_per_million: inputPerMillion,
+      output_per_million: outputPerMillion,
+      cache_read_per_million: cacheReadPerMillion,
+      cache_write_per_million: cacheWritePerMillion,
+    });
   };
 
   if (statsQuery.isLoading) {
@@ -411,7 +542,215 @@ export function AIUsagePage() {
         </CardContent>
       </Card>
 
-      {/* Pricing management section - added in the next task */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardTitle className="text-base">Model pricing</CardTitle>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setPricingOpen((current) => !current)}
+          >
+            {pricingOpen ? "Hide" : "Manage"}
+          </Button>
+        </CardHeader>
+        {pricingOpen && (
+          <CardContent className="space-y-4">
+            <div className="flex justify-end">
+              <Button size="sm" onClick={() => openEdit("new")}>
+                + Add custom pricing
+              </Button>
+            </div>
+
+            {pricingQuery.isLoading && (
+              <p className="text-sm text-muted-foreground">Loading pricing…</p>
+            )}
+
+            {pricingQuery.isError && (
+              <p className="text-sm text-destructive">Failed to load pricing.</p>
+            )}
+
+            {pricingQuery.data && (
+              <div className="space-y-5">
+                <div className="space-y-2">
+                  <h3 className="text-sm font-medium">Custom (DB)</h3>
+                  {pricingQuery.data.db_entries.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      No custom pricing rows.
+                    </p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[720px] text-sm">
+                        <thead>
+                          <tr className="border-b text-left text-muted-foreground">
+                            <th className="p-2">Model</th>
+                            <th className="p-2 text-right">Input $/M</th>
+                            <th className="p-2 text-right">Output $/M</th>
+                            <th className="p-2 text-right">Cache read $/M</th>
+                            <th className="p-2 text-right">Cache write $/M</th>
+                            <th className="p-2" />
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {pricingQuery.data.db_entries.map((entry) => (
+                            <tr
+                              key={entry.model_name}
+                              className="border-b border-border/60 hover:bg-muted/30"
+                            >
+                              <td className="p-2 font-mono">{entry.model_name}</td>
+                              <td className="p-2 text-right font-mono tabular-nums">
+                                {entry.input_per_million.toFixed(2)}
+                              </td>
+                              <td className="p-2 text-right font-mono tabular-nums">
+                                {entry.output_per_million.toFixed(2)}
+                              </td>
+                              <td className="p-2 text-right font-mono tabular-nums">
+                                {entry.cache_read_per_million?.toFixed(2) ?? "—"}
+                              </td>
+                              <td className="p-2 text-right font-mono tabular-nums">
+                                {entry.cache_write_per_million?.toFixed(2) ?? "—"}
+                              </td>
+                              <td className="p-2 text-right">
+                                <div className="flex justify-end gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => openEdit(entry)}
+                                  >
+                                    Edit
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    disabled={deletePricing.isPending}
+                                    onClick={() => deletePricing.mutate(entry.model_name)}
+                                  >
+                                    Delete
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <h3 className="text-sm font-medium">Built-in (static)</h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[520px] text-sm">
+                      <thead>
+                        <tr className="border-b text-left text-muted-foreground">
+                          <th className="p-2">Model</th>
+                          <th className="p-2 text-right">Input $/M</th>
+                          <th className="p-2 text-right">Output $/M</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pricingQuery.data.static_entries.map((entry) => (
+                          <tr
+                            key={entry.model_name}
+                            className="border-b border-border/60 hover:bg-muted/30"
+                          >
+                            <td className="p-2 font-mono">{entry.model_name}</td>
+                            <td className="p-2 text-right font-mono tabular-nums">
+                              {entry.input_per_million.toFixed(2)}
+                            </td>
+                            <td className="p-2 text-right font-mono tabular-nums">
+                              {entry.output_per_million.toFixed(2)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        )}
+      </Card>
+
+      <Dialog
+        open={editTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setEditTarget(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {editTarget === "new" ? "Add custom pricing" : `Edit ${editName}`}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="pricing_model_name">Model name</Label>
+              <Input
+                id="pricing_model_name"
+                value={editName}
+                placeholder="gpt-4.5-preview"
+                disabled={editTarget !== "new"}
+                onChange={(event) => setEditName(event.target.value)}
+              />
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="pricing_input">Input $/M</Label>
+                <Input
+                  id="pricing_input"
+                  type="number"
+                  step="0.01"
+                  value={editInput}
+                  onChange={(event) => setEditInput(event.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="pricing_output">Output $/M</Label>
+                <Input
+                  id="pricing_output"
+                  type="number"
+                  step="0.01"
+                  value={editOutput}
+                  onChange={(event) => setEditOutput(event.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="pricing_cache_read">Cache read $/M (optional)</Label>
+                <Input
+                  id="pricing_cache_read"
+                  type="number"
+                  step="0.01"
+                  value={editCacheRead}
+                  onChange={(event) => setEditCacheRead(event.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="pricing_cache_write">Cache write $/M (optional)</Label>
+                <Input
+                  id="pricing_cache_write"
+                  type="number"
+                  step="0.01"
+                  value={editCacheWrite}
+                  onChange={(event) => setEditCacheWrite(event.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditTarget(null)}>
+              Cancel
+            </Button>
+            <Button onClick={submitEdit} disabled={upsertPricing.isPending}>
+              {upsertPricing.isPending ? "Saving…" : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
