@@ -147,3 +147,44 @@ async def upload_backup(
         "size_bytes": stat.st_size,
         "created_at": datetime.fromtimestamp(stat.st_mtime),
     }
+
+
+@router.post("/{filename}/restore", response_model=BackupRestoreResponse)
+async def restore_backup(
+    filename: str,
+    db: AsyncSession = Depends(get_session),
+    admin=Depends(require_admin),
+) -> dict:
+    _validate_filename(filename)
+    svc = _get_backup_service()
+    if not (svc.backup_dir / filename).exists():
+        raise HTTPException(404, "backup not found")
+
+    await write_audit_log(
+        db,
+        admin_user_id=admin.id,
+        action="backup_restore",
+        target_type="backup",
+        target_id=filename,
+    )
+    await db.commit()
+
+    existing = {f.name for f in svc.backup_dir.glob("*.db")}
+
+    success = svc.restore(filename)
+    if not success:
+        raise HTTPException(404, "backup not found")
+
+    try:
+        _run_migrations()
+    except Exception:
+        pass
+
+    after = {f.name for f in svc.backup_dir.glob("*.db")}
+    safety_filename = next(iter(after - existing), "unknown")
+
+    return {
+        "status": "restored",
+        "restored_from": filename,
+        "safety_backup": safety_filename,
+    }

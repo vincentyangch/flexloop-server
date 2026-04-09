@@ -154,3 +154,37 @@ class TestUploadBackup:
             files={"file": ("../evil.db", b"x", "application/octet-stream")},
         )
         assert res.status_code == 422
+
+
+class TestRestoreBackup:
+    async def test_auth(self, client: AsyncClient) -> None:
+        assert (await client.post("/api/admin/backups/x.db/restore", headers=ORIGIN)).status_code == 401
+
+    async def test_restore(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        cookies = await _cookie(db_session)
+        res = await client.post(
+            "/api/admin/backups", cookies=cookies, headers=ORIGIN,
+        )
+        filename = res.json()["filename"]
+
+        res2 = await client.post(
+            f"/api/admin/backups/{filename}/restore",
+            cookies=cookies, headers=ORIGIN,
+        )
+        assert res2.status_code == 200
+        body = res2.json()
+        assert body["status"] == "restored"
+        assert body["restored_from"] == filename
+        assert body["safety_backup"].startswith("flexloop_backup_")
+
+    async def test_restore_not_found(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        cookies = await _cookie(db_session)
+        res = await client.post(
+            "/api/admin/backups/nonexistent.db/restore",
+            cookies=cookies, headers=ORIGIN,
+        )
+        assert res.status_code == 404
