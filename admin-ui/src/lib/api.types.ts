@@ -1086,6 +1086,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/ai/usage/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Usage Stats */
+        get: operations["get_usage_stats_api_admin_ai_usage_stats_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/ai/pricing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Pricing */
+        get: operations["list_pricing_api_admin_ai_pricing_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/ai/pricing/{model_name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Upsert Pricing */
+        put: operations["upsert_pricing_api_admin_ai_pricing__model_name__put"];
+        post?: never;
+        /** Delete Pricing */
+        delete: operations["delete_pricing_api_admin_ai_pricing__model_name__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/ai/usage": {
         parameters: {
             query?: never;
@@ -1357,6 +1409,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin Root */
+        get: operations["admin_root_admin_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/{path}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Admin Spa Fallback
+         * @description Serve index.html for any /admin/* path (SPA client-side routing).
+         */
+        get: operations["admin_spa_fallback_admin__path__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1593,6 +1682,17 @@ export interface components {
             current_password: string;
             /** New Password */
             new_password: string;
+        };
+        /** ChartPoint */
+        ChartPoint: {
+            /** Month */
+            month: string;
+            /** Input Tokens */
+            input_tokens: number;
+            /** Output Tokens */
+            output_tokens: number;
+            /** Estimated Cost */
+            estimated_cost: number | null;
         };
         /** DiffResponse */
         DiffResponse: {
@@ -2484,6 +2584,46 @@ export interface components {
             /** Templates */
             templates: components["schemas"]["PlaygroundTemplate"][];
         };
+        /** PricingDbEntry */
+        PricingDbEntry: {
+            /** Model Name */
+            model_name: string;
+            /** Input Per Million */
+            input_per_million: number;
+            /** Output Per Million */
+            output_per_million: number;
+            /** Cache Read Per Million */
+            cache_read_per_million: number | null;
+            /** Cache Write Per Million */
+            cache_write_per_million: number | null;
+        };
+        /** PricingListResponse */
+        PricingListResponse: {
+            /** Db Entries */
+            db_entries: components["schemas"]["PricingDbEntry"][];
+            /** Static Entries */
+            static_entries: components["schemas"]["PricingStaticEntry"][];
+        };
+        /** PricingStaticEntry */
+        PricingStaticEntry: {
+            /** Model Name */
+            model_name: string;
+            /** Input Per Million */
+            input_per_million: number;
+            /** Output Per Million */
+            output_per_million: number;
+        };
+        /** PricingUpsert */
+        PricingUpsert: {
+            /** Input Per Million */
+            input_per_million: number;
+            /** Output Per Million */
+            output_per_million: number;
+            /** Cache Read Per Million */
+            cache_read_per_million?: number | null;
+            /** Cache Write Per Million */
+            cache_write_per_million?: number | null;
+        };
         /** PromptInfoResponse */
         PromptInfoResponse: {
             /** Name */
@@ -2620,6 +2760,16 @@ export interface components {
             /** Target Rpe */
             target_rpe?: number | null;
         };
+        /** StatsResponse */
+        StatsResponse: {
+            current_month: components["schemas"]["UsageCard"];
+            /** Last 12 Months */
+            last_12_months: components["schemas"]["ChartPoint"][];
+            /** Rows */
+            rows: components["schemas"]["UsageRow"][];
+            /** Assumed Model */
+            assumed_model: string;
+        };
         /** SuggestSwapRequest */
         SuggestSwapRequest: {
             /** User Id */
@@ -2726,6 +2876,44 @@ export interface components {
             response_text: string | null;
             /** Error */
             error: string | null;
+        };
+        /** UsageCard */
+        UsageCard: {
+            /** Month */
+            month: string;
+            /** Input Tokens */
+            input_tokens: number;
+            /** Output Tokens */
+            output_tokens: number;
+            /** Cache Read Tokens */
+            cache_read_tokens: number;
+            /** Cache Write Tokens */
+            cache_write_tokens: number;
+            /** Call Count */
+            call_count: number;
+            /** Estimated Cost */
+            estimated_cost: number | null;
+        };
+        /** UsageRow */
+        UsageRow: {
+            /** Id */
+            id: number;
+            /** Month */
+            month: string;
+            /** User Id */
+            user_id: number;
+            /** Input Tokens */
+            input_tokens: number;
+            /** Output Tokens */
+            output_tokens: number;
+            /** Cache Read Tokens */
+            cache_read_tokens: number;
+            /** Cache Write Tokens */
+            cache_write_tokens: number;
+            /** Call Count */
+            call_count: number;
+            /** Estimated Cost */
+            estimated_cost: number | null;
         };
         /**
          * UserAdminCreate
@@ -5835,6 +6023,125 @@ export interface operations {
             };
         };
     };
+    get_usage_stats_api_admin_ai_usage_stats_get: {
+        parameters: {
+            query?: {
+                /** @description YYYY-MM inclusive lower bound */
+                month_from?: string | null;
+                /** @description YYYY-MM inclusive upper bound */
+                month_to?: string | null;
+                user_id?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_pricing_api_admin_ai_pricing_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PricingListResponse"];
+                };
+            };
+        };
+    };
+    upsert_pricing_api_admin_ai_pricing__model_name__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                model_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PricingUpsert"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PricingDbEntry"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_pricing_api_admin_ai_pricing__model_name__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                model_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_ai_usage_api_admin_ai_usage_get: {
         parameters: {
             query?: {
@@ -6565,6 +6872,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+        };
+    };
+    admin_root_admin_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    admin_spa_fallback_admin__path__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                path: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
