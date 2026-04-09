@@ -37,7 +37,6 @@ export function PlaygroundPage() {
       if (!res.ok) {
         const text = await res.text();
         setError(`HTTP ${res.status}: ${text}`);
-        setIsStreaming(false);
         return;
       }
       for await (const event of parseSSE(res)) {

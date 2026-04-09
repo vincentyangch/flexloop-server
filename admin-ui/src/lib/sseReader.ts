@@ -51,6 +51,8 @@ export async function* parseSSE(
       }
     }
   }
+  // Flush any bytes held by the decoder for incomplete multibyte sequences
+  buffer += decoder.decode();
   // Flush any remaining buffer
   const trimmed = buffer.trim();
   if (trimmed.startsWith("data:")) {
