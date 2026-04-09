@@ -1,6 +1,7 @@
 """Integration tests for /api/admin/logs."""
 from __future__ import annotations
 
+import asyncio
 import logging
 from pathlib import Path
 
@@ -103,3 +104,31 @@ class TestGetLogs:
         assert response.status_code == 200
         records = response.json()
         assert [record["message"] for record in records] == ["msg 7", "msg 8", "msg 9"]
+
+
+class TestStreamLogs:
+    async def test_auth(self, client: AsyncClient) -> None:
+        response = await client.get("/api/admin/logs/stream")
+        assert response.status_code == 401
+
+    async def test_stream_returns_sse(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from flexloop.admin.routers import logs as logs_router
+
+        async def _stop_after_first_poll(_seconds: float) -> None:
+            raise asyncio.CancelledError
+
+        cookies = await _cookie(db_session)
+        logger = logging.getLogger("test.logs.stream")
+        logger.warning("stream test")
+        monkeypatch.setattr(logs_router.asyncio, "sleep", _stop_after_first_poll)
+
+        response = await client.get("/api/admin/logs/stream", cookies=cookies)
+
+        assert response.status_code == 200
+        assert "text/event-stream" in response.headers.get("content-type", "")
+        assert "data:" in response.text
