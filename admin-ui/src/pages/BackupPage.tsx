@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { HardDriveDownload, Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -37,6 +38,7 @@ function formatAge(iso: string): string {
 
 export function BackupPage() {
   const qc = useQueryClient();
+  const [dragOver, setDragOver] = useState(false);
 
   const { data: backups = [], isLoading } = useQuery({
     queryKey: ["admin", "backups"],
@@ -52,6 +54,41 @@ export function BackupPage() {
     onError: () => toast.error("Failed to create backup"),
   });
 
+  const uploadMut = useMutation({
+    mutationFn: async (file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch("/api/admin/backups/upload", {
+        method: "POST",
+        credentials: "include",
+        body: form,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        throw new Error(err.detail);
+      }
+      return res.json() as Promise<Backup>;
+    },
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["admin", "backups"] });
+      toast.success(`Uploaded: ${data.filename}`);
+    },
+    onError: (err: Error) => toast.error(`Upload failed: ${err.message}`),
+  });
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer.files[0];
+    if (file) uploadMut.mutate(file);
+  }
+
+  function handleFileInput(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) uploadMut.mutate(file);
+    e.target.value = "";
+  }
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -65,6 +102,36 @@ export function BackupPage() {
             {createMut.isPending ? "Creating…" : "Create backup"}
           </Button>
         </div>
+      </div>
+
+      <div
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragOver(true);
+        }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={handleDrop}
+        className={`rounded-lg border-2 border-dashed p-6 text-center transition-colors ${
+          dragOver
+            ? "border-primary bg-primary/5"
+            : "border-muted-foreground/25"
+        }`}
+      >
+        <p className="text-sm text-muted-foreground">
+          Drag &amp; drop a <code>.db</code> backup file here, or{" "}
+          <label className="cursor-pointer text-primary underline">
+            browse
+            <input
+              type="file"
+              accept=".db"
+              className="hidden"
+              onChange={handleFileInput}
+            />
+          </label>
+        </p>
+        {uploadMut.isPending && (
+          <p className="mt-2 text-sm text-muted-foreground">Uploading…</p>
+        )}
       </div>
 
       {isLoading ? (
