@@ -58,6 +58,29 @@ class ToolUseResponse:
         )
 
 
+@dataclass
+class StreamEvent:
+    """A single event emitted by ``LLMAdapter.stream_generate``.
+
+    ``type`` is one of:
+    - ``"content"``: incremental text chunk; ``delta`` holds the bytes.
+    - ``"usage"``: terminal token/latency info; populated fields are
+      ``input_tokens``, ``output_tokens``, ``cache_read_tokens``, ``latency_ms``.
+    - ``"done"``: explicit end-of-stream marker — frontends use this to
+      render a "complete" state before the HTTP connection closes.
+    - ``"error"``: adapter failure during streaming; ``error`` holds the
+      human-readable message. Streams with an error event also emit a
+      final ``"done"`` event.
+    """
+    type: str
+    delta: str | None = None
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    cache_read_tokens: int | None = None
+    latency_ms: int | None = None
+    error: str | None = None
+
+
 class LLMAdapter(ABC):
     def __init__(self, model: str, api_key: str, base_url: str = "", **kwargs):
         self.model = model
