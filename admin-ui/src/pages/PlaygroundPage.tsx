@@ -9,6 +9,7 @@
  * the "Open in playground →" query param handler.
  */
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 
 import { PlaygroundInput } from "@/components/playground/PlaygroundInput";
 import type { PlaygroundRunPayload } from "@/components/playground/PlaygroundInput";
@@ -17,6 +18,9 @@ import type { PlaygroundUsage } from "@/components/playground/PlaygroundOutput";
 import { parseSSE } from "@/lib/sseReader";
 
 export function PlaygroundPage() {
+  const [searchParams] = useSearchParams();
+  const initialTemplate = searchParams.get("template");
+
   const [content, setContent] = useState("");
   const [usage, setUsage] = useState<PlaygroundUsage | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -73,7 +77,7 @@ export function PlaygroundPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <PlaygroundInput onSend={send} isStreaming={isStreaming} />
+        <PlaygroundInput onSend={send} isStreaming={isStreaming} initialTemplate={initialTemplate} />
         <PlaygroundOutput
           content={content}
           usage={usage}
