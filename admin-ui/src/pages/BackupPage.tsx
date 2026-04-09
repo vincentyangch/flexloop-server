@@ -1,9 +1,25 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { HardDriveDownload, Plus } from "lucide-react";
+import {
+  HardDriveDownload,
+  Plus,
+  RotateCcw,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -39,6 +55,9 @@ function formatAge(iso: string): string {
 export function BackupPage() {
   const qc = useQueryClient();
   const [dragOver, setDragOver] = useState(false);
+  const [restoreTarget, setRestoreTarget] = useState<Backup | null>(null);
+  const [restoreConfirmText, setRestoreConfirmText] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
   const { data: backups = [], isLoading } = useQuery({
     queryKey: ["admin", "backups"],
@@ -74,6 +93,37 @@ export function BackupPage() {
       toast.success(`Uploaded: ${data.filename}`);
     },
     onError: (err: Error) => toast.error(`Upload failed: ${err.message}`),
+  });
+
+  const restoreMut = useMutation({
+    mutationFn: (filename: string) =>
+      api.post<{
+        status: string;
+        restored_from: string;
+        safety_backup: string;
+      }>(`/api/admin/backups/${filename}/restore`),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["admin", "backups"] });
+      toast.success(
+        `Restored from ${data.restored_from}. Safety backup: ${data.safety_backup}`,
+      );
+      setRestoreTarget(null);
+      setRestoreConfirmText("");
+    },
+    onError: () => {
+      toast.error("Restore failed");
+      setRestoreTarget(null);
+    },
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (filename: string) => api.delete(`/api/admin/backups/${filename}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "backups"] });
+      toast.success("Backup deleted");
+      setDeleteTarget(null);
+    },
+    onError: () => toast.error("Delete failed"),
   });
 
   function handleDrop(e: React.DragEvent) {
@@ -165,12 +215,97 @@ export function BackupPage() {
                       <HardDriveDownload className="h-4 w-4" />
                     </a>
                   </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setRestoreTarget(b)}
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setDeleteTarget(b.filename)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       )}
+
+      <AlertDialog
+        open={restoreTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRestoreTarget(null);
+            setRestoreConfirmText("");
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Restore backup?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will replace the current database with{" "}
+              <code className="font-mono">{restoreTarget?.filename}</code> (
+              {restoreTarget ? formatBytes(restoreTarget.size_bytes) : ""}, created{" "}
+              {restoreTarget ? formatAge(restoreTarget.created_at) : ""}). A
+              safety backup of the current state will be created first. Type the
+              backup filename to confirm.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <Input
+            value={restoreConfirmText}
+            onChange={(e) => setRestoreConfirmText(e.target.value)}
+            placeholder={restoreTarget?.filename ?? ""}
+            className="font-mono text-sm"
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={
+                restoreConfirmText !== restoreTarget?.filename ||
+                restoreMut.isPending
+              }
+              onClick={() =>
+                restoreTarget && restoreMut.mutate(restoreTarget.filename)
+              }
+            >
+              {restoreMut.isPending ? "Restoring…" : "Restore"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete backup?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete{" "}
+              <code className="font-mono">{deleteTarget}</code>. This action
+              cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleteMut.isPending}
+              onClick={() => deleteTarget && deleteMut.mutate(deleteTarget)}
+            >
+              {deleteMut.isPending ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
