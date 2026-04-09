@@ -17,6 +17,7 @@ from fastapi.staticfiles import StaticFiles
 
 from flexloop.admin.csrf import OriginCheckMiddleware
 from flexloop.config import settings as _app_settings
+from flexloop.admin.routers.backup import router as admin_backup_router
 from flexloop.admin.routers.admin_users import router as admin_admin_users_router
 from flexloop.admin.routers.config import router as admin_config_router
 from flexloop.admin.routers.playground import router as admin_playground_router
@@ -91,6 +92,7 @@ app.include_router(admin_workouts_router)
 app.include_router(admin_measurements_router)
 app.include_router(admin_plans_router)
 app.include_router(admin_prs_router)
+app.include_router(admin_backup_router)
 app.include_router(admin_exercises_router)
 app.include_router(admin_ai_dashboard_router)
 app.include_router(admin_ai_usage_router)
