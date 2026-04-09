@@ -1,7 +1,9 @@
 """Integration tests for /api/admin/triggers."""
 from __future__ import annotations
 
+import json
 import sqlite3
+from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -20,7 +22,9 @@ from flexloop.models.admin_session import AdminSession
 from flexloop.models.admin_user import AdminUser
 from flexloop.models.ai import AIUsage
 from flexloop.models.exercise import Exercise
+from flexloop.models.personal_record import PersonalRecord
 from flexloop.models.user import User
+from flexloop.models.workout import WorkoutSession, WorkoutSet
 
 
 ORIGIN = {"Origin": "http://localhost:5173"}
@@ -305,3 +309,77 @@ class TestClearAiUsage:
         )
         assert res.status_code == 200
         assert res.json() == {"status": "ok", "deleted": 1}
+
+
+class TestRecomputePrs:
+    async def test_auth(self, client: AsyncClient) -> None:
+        assert (
+            await client.post("/api/admin/triggers/recompute-prs", headers=ORIGIN)
+        ).status_code == 401
+
+    async def test_returns_sse_and_recomputes_prs(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        cookies = await _cookie(db_session)
+        user = await _user(db_session)
+        exercise = Exercise(
+            name="Barbell Back Squat",
+            muscle_group="quads",
+            equipment="barbell",
+            category="compound",
+            difficulty="intermediate",
+        )
+        db_session.add(exercise)
+        await db_session.commit()
+        await db_session.refresh(exercise)
+
+        session = WorkoutSession(
+            user_id=user.id,
+            source="plan",
+            started_at=datetime.utcnow(),
+        )
+        db_session.add(session)
+        await db_session.commit()
+        await db_session.refresh(session)
+
+        db_session.add(
+            WorkoutSet(
+                session_id=session.id,
+                exercise_id=exercise.id,
+                set_number=1,
+                set_type="working",
+                weight=100.0,
+                reps=5,
+            )
+        )
+        await db_session.commit()
+
+        async with client.stream(
+            "POST",
+            "/api/admin/triggers/recompute-prs",
+            cookies=cookies,
+            headers=ORIGIN,
+        ) as response:
+            assert response.status_code == 200
+            assert "text/event-stream" in response.headers.get("content-type", "")
+            text = "".join([chunk async for chunk in response.aiter_text()])
+
+        blocks = [block.strip() for block in text.split("\n\n") if block.strip()]
+        events = [
+            json.loads(block.removeprefix("data:").strip())
+            for block in blocks
+            if block.startswith("data:")
+        ]
+
+        progress = [event for event in events if event.get("type") == "progress"]
+        done = [event for event in events if event.get("type") == "done"]
+
+        assert progress
+        assert done
+        assert done[-1]["result"]["sets_checked"] == 1
+        assert done[-1]["result"]["new_prs"] >= 1
+
+        records = await db_session.execute(
+            select(PersonalRecord).where(PersonalRecord.user_id == user.id)
+        )
+        assert len(records.scalars().all()) >= 1

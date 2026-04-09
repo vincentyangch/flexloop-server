@@ -8,7 +8,8 @@ import time
 from pathlib import Path
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import delete, select
+from fastapi.responses import StreamingResponse
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from flexloop.admin.audit import write_audit_log
@@ -19,6 +20,9 @@ from flexloop.models.admin_session import AdminSession
 from flexloop.models.admin_user import AdminUser
 from flexloop.models.ai import AIUsage
 from flexloop.models.exercise import Exercise
+from flexloop.models.user import User
+from flexloop.models.workout import WorkoutSession, WorkoutSet
+from flexloop.services.pr_detection import check_prs
 from flexloop.services.backup import BackupService
 
 router = APIRouter(prefix="/api/admin/triggers", tags=["admin:triggers"])
@@ -199,3 +203,103 @@ async def trigger_clear_ai_usage(
     )
     await db.commit()
     return {"status": "ok", "deleted": deleted}
+
+
+def _sse_event(payload: dict[str, object]) -> str:
+    return f"data: {json.dumps(payload)}\n\n"
+
+
+@router.post("/recompute-prs")
+async def trigger_recompute_prs(
+    db: AsyncSession = Depends(get_session),
+    admin: AdminUser = Depends(require_admin),
+) -> StreamingResponse:
+    async def event_generator():
+        total_sets = (
+            await db.execute(select(func.count()).select_from(WorkoutSet))
+        ).scalar_one()
+
+        if total_sets == 0:
+            await write_audit_log(
+                db,
+                admin_user_id=admin.id,
+                action="trigger_recompute_prs",
+                target_type="system",
+                after={"sets_checked": 0, "new_prs": 0},
+            )
+            await db.commit()
+            yield _sse_event({"type": "done", "result": {"new_prs": 0, "sets_checked": 0}})
+            return
+
+        users = {
+            user.id: user
+            for user in (await db.execute(select(User))).scalars().all()
+        }
+        sets = (
+            await db.execute(
+                select(WorkoutSet, WorkoutSession.user_id).join(
+                    WorkoutSession,
+                    WorkoutSet.session_id == WorkoutSession.id,
+                )
+            )
+        ).all()
+
+        processed = 0
+        new_prs_total = 0
+
+        for workout_set, user_id in sets:
+            user = users.get(user_id)
+            weight_unit = user.weight_unit if user is not None else "kg"
+
+            try:
+                new_prs = await check_prs(
+                    user_id=user_id,
+                    exercise_id=workout_set.exercise_id,
+                    weight=workout_set.weight,
+                    reps=workout_set.reps,
+                    session_id=workout_set.session_id,
+                    db=db,
+                    weight_unit=weight_unit,
+                )
+                new_prs_total += len(new_prs)
+            except Exception:  # noqa: BLE001
+                pass
+
+            processed += 1
+            if processed % 50 == 0 or processed == total_sets:
+                percent = int(processed / total_sets * 100)
+                yield _sse_event(
+                    {
+                        "type": "progress",
+                        "percent": percent,
+                        "current_step": f"Set {processed}/{total_sets}",
+                        "message": (
+                            f"Checked {processed} sets, found {new_prs_total} new PRs"
+                        ),
+                    }
+                )
+
+        await write_audit_log(
+            db,
+            admin_user_id=admin.id,
+            action="trigger_recompute_prs",
+            target_type="system",
+            after={"sets_checked": processed, "new_prs": new_prs_total},
+        )
+        await db.commit()
+
+        yield _sse_event(
+            {
+                "type": "done",
+                "result": {
+                    "new_prs": new_prs_total,
+                    "sets_checked": processed,
+                },
+            }
+        )
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
