@@ -188,3 +188,37 @@ class TestRestoreBackup:
             cookies=cookies, headers=ORIGIN,
         )
         assert res.status_code == 404
+
+
+class TestDeleteBackup:
+    async def test_auth(self, client: AsyncClient) -> None:
+        assert (await client.delete("/api/admin/backups/x.db", headers=ORIGIN)).status_code == 401
+
+    async def test_delete(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        cookies = await _cookie(db_session)
+        res = await client.post(
+            "/api/admin/backups", cookies=cookies, headers=ORIGIN,
+        )
+        filename = res.json()["filename"]
+
+        res2 = await client.delete(
+            f"/api/admin/backups/{filename}",
+            cookies=cookies, headers=ORIGIN,
+        )
+        assert res2.status_code == 204
+
+        res3 = await client.get("/api/admin/backups", cookies=cookies)
+        filenames = [b["filename"] for b in res3.json()]
+        assert filename not in filenames
+
+    async def test_delete_not_found(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        cookies = await _cookie(db_session)
+        res = await client.delete(
+            "/api/admin/backups/nonexistent.db",
+            cookies=cookies, headers=ORIGIN,
+        )
+        assert res.status_code == 404

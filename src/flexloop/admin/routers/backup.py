@@ -188,3 +188,25 @@ async def restore_backup(
         "restored_from": filename,
         "safety_backup": safety_filename,
     }
+
+
+@router.delete("/{filename}", status_code=204)
+async def delete_backup(
+    filename: str,
+    db: AsyncSession = Depends(get_session),
+    admin=Depends(require_admin),
+) -> None:
+    _validate_filename(filename)
+    svc = _get_backup_service()
+    filepath = svc.backup_dir / filename
+    if not filepath.exists():
+        raise HTTPException(404, "backup not found")
+    filepath.unlink()
+    await write_audit_log(
+        db,
+        admin_user_id=admin.id,
+        action="backup_delete",
+        target_type="backup",
+        target_id=filename,
+    )
+    await db.commit()
