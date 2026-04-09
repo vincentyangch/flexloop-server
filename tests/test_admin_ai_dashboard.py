@@ -118,7 +118,15 @@ class TestStatsCurrentMonth:
         self,
         client: AsyncClient,
         db_session: AsyncSession,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
+        from flexloop.config import settings
+
+        # Pin the assumed model so the test doesn't depend on what happens
+        # to be in the local .env (the sibling ``test_unknown_model_returns_null_cost``
+        # pins the other direction).
+        monkeypatch.setattr(settings, "ai_model", "gpt-4o-mini")
+
         cookies = await _make_admin_and_cookie(db_session)
         user = await _make_user(db_session)
         month = _current_month()
