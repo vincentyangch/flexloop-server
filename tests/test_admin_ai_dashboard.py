@@ -5,11 +5,13 @@ from datetime import date
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from flexloop.admin.auth import SESSION_COOKIE_NAME, create_session, hash_password
 from flexloop.models.admin_user import AdminUser
 from flexloop.models.ai import AIUsage
+from flexloop.models.model_pricing import ModelPricing
 from flexloop.models.user import User
 
 
@@ -334,3 +336,193 @@ class TestStatsRows:
         rows = res.json()["rows"]
         assert len(rows) == 1
         assert rows[0]["month"] == "2026-02"
+
+
+class TestGetPricing:
+    async def test_requires_auth(self, client: AsyncClient) -> None:
+        assert (await client.get("/api/admin/ai/pricing")).status_code == 401
+
+    async def test_returns_static_and_db_entries(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ) -> None:
+        cookies = await _make_admin_and_cookie(db_session)
+        db_session.add(
+            ModelPricing(
+                model_name="custom-proxy",
+                input_per_million=0.50,
+                output_per_million=1.00,
+                cache_read_per_million=None,
+                cache_write_per_million=None,
+            )
+        )
+        await db_session.commit()
+
+        res = await client.get("/api/admin/ai/pricing", cookies=cookies)
+        assert res.status_code == 200
+        body = res.json()
+        assert "db_entries" in body
+        assert "static_entries" in body
+        db_names = {entry["model_name"] for entry in body["db_entries"]}
+        assert "custom-proxy" in db_names
+        static_names = {entry["model_name"] for entry in body["static_entries"]}
+        assert "gpt-4o-mini" in static_names
+
+
+class TestUpsertPricing:
+    async def test_requires_auth(self, client: AsyncClient) -> None:
+        res = await client.put(
+            "/api/admin/ai/pricing/custom-model",
+            json={"input_per_million": 1.0, "output_per_million": 2.0},
+            headers={"Origin": ORIGIN},
+        )
+        assert res.status_code == 401
+
+    async def test_creates_new_entry(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ) -> None:
+        cookies = await _make_admin_and_cookie(db_session)
+        res = await client.put(
+            "/api/admin/ai/pricing/new-model",
+            json={
+                "input_per_million": 0.25,
+                "output_per_million": 0.50,
+                "cache_read_per_million": 0.05,
+                "cache_write_per_million": 0.60,
+            },
+            cookies=cookies,
+            headers={"Origin": ORIGIN},
+        )
+        assert res.status_code == 200
+        body = res.json()
+        assert body["model_name"] == "new-model"
+        assert body["input_per_million"] == 0.25
+        assert body["output_per_million"] == 0.50
+
+        row = (
+            await db_session.execute(
+                select(ModelPricing).where(ModelPricing.model_name == "new-model")
+            )
+        ).scalar_one_or_none()
+        assert row is not None
+        assert row.input_per_million == 0.25
+
+    async def test_updates_existing_entry(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ) -> None:
+        cookies = await _make_admin_and_cookie(db_session)
+        db_session.add(
+            ModelPricing(
+                model_name="existing",
+                input_per_million=1.0,
+                output_per_million=2.0,
+                cache_read_per_million=None,
+                cache_write_per_million=None,
+            )
+        )
+        await db_session.commit()
+
+        res = await client.put(
+            "/api/admin/ai/pricing/existing",
+            json={"input_per_million": 99.0, "output_per_million": 199.0},
+            cookies=cookies,
+            headers={"Origin": ORIGIN},
+        )
+        assert res.status_code == 200
+        row = (
+            await db_session.execute(
+                select(ModelPricing).where(ModelPricing.model_name == "existing")
+            )
+        ).scalar_one()
+        assert row.input_per_million == 99.0
+        assert row.output_per_million == 199.0
+
+    async def test_rejects_negative(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ) -> None:
+        cookies = await _make_admin_and_cookie(db_session)
+        res = await client.put(
+            "/api/admin/ai/pricing/bad",
+            json={"input_per_million": -1.0, "output_per_million": 1.0},
+            cookies=cookies,
+            headers={"Origin": ORIGIN},
+        )
+        assert res.status_code == 422
+
+    async def test_rejects_unknown_field(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ) -> None:
+        cookies = await _make_admin_and_cookie(db_session)
+        res = await client.put(
+            "/api/admin/ai/pricing/bad",
+            json={
+                "input_per_million": 1.0,
+                "output_per_million": 2.0,
+                "wrong_field": 99,
+            },
+            cookies=cookies,
+            headers={"Origin": ORIGIN},
+        )
+        assert res.status_code == 422
+
+
+class TestDeletePricing:
+    async def test_requires_auth(self, client: AsyncClient) -> None:
+        res = await client.delete(
+            "/api/admin/ai/pricing/whatever",
+            headers={"Origin": ORIGIN},
+        )
+        assert res.status_code == 401
+
+    async def test_deletes_existing(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ) -> None:
+        cookies = await _make_admin_and_cookie(db_session)
+        db_session.add(
+            ModelPricing(
+                model_name="to-delete",
+                input_per_million=1.0,
+                output_per_million=2.0,
+                cache_read_per_million=None,
+                cache_write_per_million=None,
+            )
+        )
+        await db_session.commit()
+
+        res = await client.delete(
+            "/api/admin/ai/pricing/to-delete",
+            cookies=cookies,
+            headers={"Origin": ORIGIN},
+        )
+        assert res.status_code == 204
+
+        row = (
+            await db_session.execute(
+                select(ModelPricing).where(ModelPricing.model_name == "to-delete")
+            )
+        ).scalar_one_or_none()
+        assert row is None
+
+    async def test_nonexistent_silently_succeeds(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ) -> None:
+        cookies = await _make_admin_and_cookie(db_session)
+        res = await client.delete(
+            "/api/admin/ai/pricing/never-existed",
+            cookies=cookies,
+            headers={"Origin": ORIGIN},
+        )
+        assert res.status_code == 204
