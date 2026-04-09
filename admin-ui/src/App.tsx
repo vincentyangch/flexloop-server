@@ -21,6 +21,7 @@ import { PlansPage } from "@/pages/PlansPage";
 import { PlanDetailPage } from "@/pages/PlanDetailPage";
 import { ConfigPage } from "@/pages/ConfigPage";
 import { PromptsPage } from "@/pages/PromptsPage";
+import { PlaygroundPage } from "@/pages/PlaygroundPage";
 
 export function App() {
   return (
@@ -50,6 +51,7 @@ export function App() {
             <Route path="ai/usage" element={<AIUsagePage />} />
             <Route path="ai/config" element={<ConfigPage />} />
             <Route path="ai/prompts" element={<PromptsPage />} />
+            <Route path="ai/playground" element={<PlaygroundPage />} />
             <Route path="admin-users" element={<AdminUsersPage />} />
           </Route>
         </Routes>

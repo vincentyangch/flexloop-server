@@ -65,7 +65,7 @@ const groups: Group[] = [
     items: [
       { label: "Config", to: "/ai/config", icon: Settings },
       { label: "Prompts", to: "/ai/prompts", icon: FileText },
-      { label: "Playground", to: "/ai/playground", icon: FlaskConical, disabled: true },
+      { label: "Playground", to: "/ai/playground", icon: FlaskConical },
       { label: "Usage", to: "/ai/usage", icon: BarChart3 },
     ],
   },
