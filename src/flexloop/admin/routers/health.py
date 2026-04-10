@@ -1,31 +1,38 @@
 """Admin health endpoint: /api/admin/health.
 
 Runs a handful of quick checks (DB reachability, row counts, system info,
-recent errors from the ring buffer) and returns a structured payload for
-the dashboard health card and the dedicated health page.
-
-Phase 1 scope: DB, system info, recent errors, table row counts. Later
-phases will add AI provider check, disk/memory, backups, migrations status.
+recent errors from the ring buffer, AI provider, disk, memory, backups,
+migrations) and returns a structured payload for the dashboard health card
+and the dedicated health page.
 """
 import os
 import platform
+import resource
+import shutil
 import sys
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
+import httpx
 from fastapi import APIRouter, Depends
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from flexloop.admin.auth import require_admin
 from flexloop.admin.log_handler import admin_ring_buffer
+from flexloop.config import settings as _settings
 from flexloop.db.engine import get_session
 
 router = APIRouter(prefix="/api/admin", tags=["admin:health"])
 
 
 _PROCESS_START = time.time()
+
+# AI provider check cache (60-second TTL)
+_ai_cache: dict[str, Any] | None = None
+_ai_cache_at: float = 0
 
 
 # List of tables to count rows for on the health page. Plain table names are
@@ -64,9 +71,7 @@ async def _check_database(db: AsyncSession) -> dict[str, Any]:
 
     db_size_bytes = 0
     try:
-        # Best-effort for SQLite; other DBs will fall through
-        from flexloop.config import settings as app_settings
-        url = app_settings.database_url
+        url = _settings.database_url
         if url.startswith("sqlite"):
             path = url.split(":///")[-1]
             if os.path.exists(path):
@@ -80,6 +85,136 @@ async def _check_database(db: AsyncSession) -> dict[str, Any]:
         "db_size_bytes": db_size_bytes,
         "table_row_counts": row_counts,
     }
+
+
+async def _check_ai_provider() -> dict[str, Any]:
+    global _ai_cache, _ai_cache_at  # noqa: PLW0603
+    now = time.time()
+    if _ai_cache and (now - _ai_cache_at) < 60:
+        return {**_ai_cache, "cached": True}
+
+    provider = _settings.ai_provider
+    model = _settings.ai_model
+    api_key = _settings.ai_api_key
+    base_url = _settings.ai_base_url or "https://api.openai.com"
+
+    has_key = bool(api_key)
+    reachable = False
+    error = None
+
+    if has_key:
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                r = await client.get(base_url)
+                reachable = r.status_code < 500
+        except Exception as e:  # noqa: BLE001
+            error = str(e)
+
+    if has_key and reachable:
+        status = "healthy"
+    elif has_key:
+        status = "degraded"
+    else:
+        status = "unconfigured"
+
+    result: dict[str, Any] = {
+        "status": status,
+        "provider": provider,
+        "model": model,
+        "has_key": has_key,
+        "reachable": reachable,
+    }
+    if error:
+        result["error"] = error
+
+    _ai_cache = result
+    _ai_cache_at = now
+    return result
+
+
+def _check_disk() -> dict[str, Any]:
+    try:
+        usage = shutil.disk_usage("/")
+        return {
+            "total_bytes": usage.total,
+            "free_bytes": usage.free,
+            "used_pct": round((usage.used / usage.total) * 100, 1),
+        }
+    except Exception as e:  # noqa: BLE001
+        return {"error": str(e)}
+
+
+def _check_memory() -> dict[str, Any]:
+    try:
+        rusage = resource.getrusage(resource.RUSAGE_SELF)
+        rss = rusage.ru_maxrss
+        # macOS reports ru_maxrss in bytes, Linux in KB
+        if platform.system() == "Linux":
+            rss *= 1024
+        result: dict[str, Any] = {"rss_bytes": rss}
+        # Try to get current VMS from /proc on Linux
+        try:
+            with open("/proc/self/status") as f:
+                for line in f:
+                    if line.startswith("VmSize:"):
+                        result["vms_bytes"] = int(line.split()[1]) * 1024
+                        break
+        except (FileNotFoundError, PermissionError):
+            pass
+        return result
+    except Exception as e:  # noqa: BLE001
+        return {"error": str(e)}
+
+
+def _check_backups() -> dict[str, Any]:
+    try:
+        backups_dir = Path("backups")
+        if not backups_dir.exists():
+            return {"count": 0, "total_bytes": 0}
+        files = list(backups_dir.glob("*.db"))
+        if not files:
+            return {"count": 0, "total_bytes": 0}
+        total_bytes = sum(f.stat().st_size for f in files)
+        latest = max(files, key=lambda f: f.stat().st_mtime)
+        last_at = datetime.fromtimestamp(
+            latest.stat().st_mtime, tz=timezone.utc
+        ).isoformat()
+        return {
+            "count": len(files),
+            "last_at": last_at,
+            "total_bytes": total_bytes,
+        }
+    except Exception as e:  # noqa: BLE001
+        return {"error": str(e)}
+
+
+def _check_migrations() -> dict[str, Any]:
+    try:
+        from alembic.config import Config
+        from alembic.migration import MigrationContext
+        from alembic.script import ScriptDirectory
+        from sqlalchemy import create_engine
+
+        alembic_cfg = Config("alembic.ini")
+        script = ScriptDirectory.from_config(alembic_cfg)
+        head_rev = script.get_current_head()
+
+        sync_url = _settings.database_url.replace(
+            "sqlite+aiosqlite", "sqlite"
+        )
+        engine = create_engine(sync_url)
+        with engine.connect() as conn:
+            context = MigrationContext.configure(conn)
+            current_rev = context.get_current_revision()
+        engine.dispose()
+
+        return {
+            "current_rev": current_rev,
+            "head_rev": head_rev,
+            "in_sync": current_rev == head_rev,
+        }
+    except Exception as e:  # noqa: BLE001
+        return {"error": str(e)}
 
 
 def _recent_errors(limit: int = 20) -> list[dict[str, Any]]:
@@ -106,18 +241,31 @@ async def admin_health(
     _user=Depends(require_admin),
 ):
     database = await _check_database(db)
+    ai_provider = await _check_ai_provider()
     recent_errors = _recent_errors()
     system = _system_info()
 
-    status = "healthy" if database["status"] == "healthy" else "degraded"
+    component_statuses = [
+        database.get("status"),
+        ai_provider.get("status"),
+    ]
+    if all(s == "healthy" for s in component_statuses):
+        status = "healthy"
+    elif any(s == "down" for s in component_statuses):
+        status = "down"
+    else:
+        status = "degraded"
 
     return {
         "status": status,
         "checked_at": datetime.now(timezone.utc).isoformat(),
         "components": {
             "database": database,
-            # Phase 4 will add ai_provider component
-            # Phase 5 will add disk, memory, backups, migrations
+            "ai_provider": ai_provider,
+            "disk": _check_disk(),
+            "memory": _check_memory(),
+            "backups": _check_backups(),
+            "migrations": _check_migrations(),
         },
         "recent_errors": recent_errors,
         "system": system,
