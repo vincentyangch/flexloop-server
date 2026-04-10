@@ -97,7 +97,7 @@ export function DataTable<T>({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <Input
           placeholder={`Search ${resourceLabel}...`}
           value={search}
