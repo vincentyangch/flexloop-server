@@ -106,6 +106,7 @@ export function LogsPage() {
   const [level, setLevel] = useState<LogLevel>("INFO");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [since, setSince] = useState("");
   const [logs, setLogs] = useState<LogRecord[]>([]);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [liveTail, setLiveTail] = useState(false);
@@ -122,14 +123,17 @@ export function LogsPage() {
   useEffect(() => {
     setLogs([]);
     setExpandedId(null);
-  }, [level, debouncedSearch]);
+  }, [level, debouncedSearch, since]);
+
+  const sinceISO = since ? new Date(since).toISOString() : undefined;
 
   const logsQuery = useQuery({
-    queryKey: ["admin", "logs", level, debouncedSearch, HISTORY_LIMIT],
+    queryKey: ["admin", "logs", level, debouncedSearch, sinceISO, HISTORY_LIMIT],
     queryFn: () =>
       api.get<LogRecord[]>("/api/admin/logs", {
         level,
         search: debouncedSearch || undefined,
+        since: sinceISO,
         limit: HISTORY_LIMIT,
       }),
     refetchOnWindowFocus: false,
@@ -228,7 +232,7 @@ export function LogsPage() {
         </div>
       </div>
 
-      <div className="grid gap-3 rounded-xl border bg-card/70 p-3 backdrop-blur-sm md:grid-cols-[160px_minmax(0,1fr)_auto]">
+      <div className="grid gap-3 rounded-xl border bg-card/70 p-3 backdrop-blur-sm md:grid-cols-[160px_minmax(0,1fr)_180px_auto]">
         <div className="space-y-1">
           <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
             Severity
@@ -260,6 +264,18 @@ export function LogsPage() {
               placeholder="message, logger, exception"
             />
           </div>
+        </div>
+
+        <div className="space-y-1">
+          <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+            Since
+          </div>
+          <Input
+            type="datetime-local"
+            value={since}
+            onChange={(event) => setSince(event.target.value)}
+            className="w-full"
+          />
         </div>
 
         <div className="flex items-end">
