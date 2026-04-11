@@ -1,0 +1,40 @@
+# FlexLoop reverse proxy (Caddy v2+)
+#
+# FastAPI serves everything (API + admin SPA) on 127.0.0.1:8000. This
+# config just terminates HTTPS and forwards every request — there is
+# no path-based routing to do here.
+#
+# Before first use, set the domain. Two options:
+#   1. Hardcode: sed -i 's/{$FLEXLOOP_DOMAIN}/yourdomain.com/' Caddyfile
+#   2. Env var:  put `FLEXLOOP_DOMAIN=yourdomain.com` in /etc/default/caddy
+#      and uncomment EnvironmentFile= in /etc/systemd/system/caddy.service
+#      (or use `systemctl edit caddy` to override).
+#
+# Caddy's `reverse_proxy` directive automatically:
+#   - Sets X-Forwarded-For / X-Forwarded-Proto / X-Forwarded-Host
+#   - Streams SSE and WebSocket upgrades without buffering (needed for
+#     the admin dashboard Logs tail and AI Playground streaming)
+#   - Obtains + auto-renews a Let's Encrypt cert for the site address
+# So this file stays short.
+
+{$FLEXLOOP_DOMAIN} {
+	encode gzip
+
+	header {
+		# Force HTTPS for this domain for one year.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		# Don't sniff MIME types.
+		X-Content-Type-Options "nosniff"
+		# Block iframe embedding.
+		X-Frame-Options "DENY"
+		# Origin-only referrer on cross-origin navigations.
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+
+	log {
+		output file /var/log/caddy/flexloop.log
+		format console
+	}
+
+	reverse_proxy 127.0.0.1:8000
+}

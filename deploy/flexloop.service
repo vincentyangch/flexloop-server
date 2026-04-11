@@ -1,0 +1,25 @@
+[Unit]
+Description=FlexLoop FastAPI backend
+After=network.target
+
+[Service]
+Type=simple
+User=flexloop
+Group=flexloop
+WorkingDirectory=/opt/flexloop/flexloop-server
+
+# Uses the uv-managed .venv created by `uv sync --all-extras`.
+# No network at startup; all deps must already be installed.
+# Binds to 127.0.0.1 because Caddy handles all external traffic.
+ExecStart=/opt/flexloop/flexloop-server/.venv/bin/uvicorn flexloop.main:app --host 127.0.0.1 --port 8000
+
+Restart=on-failure
+RestartSec=5s
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
