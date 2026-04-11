@@ -3,6 +3,11 @@
 Production deployment to a single Ubuntu/Debian VPS using **Caddy** for
 HTTPS termination and **systemd** to run uvicorn.
 
+> **Deploying with an AI agent?** Point it at [`agent-runbook.md`](./agent-runbook.md)
+> instead. That file is the machine-readable version of this walkthrough with
+> explicit verification probes and non-interactive variants of the bootstrap
+> commands (`--password-env`, `set-allowed-origins`).
+
 Architecture: **one process, one port**. FastAPI serves `/api/*` and the
 built admin SPA at `/admin/*` itself — there is no separate static file
 server. Caddy just forwards every request to `127.0.0.1:8000`.
@@ -15,11 +20,12 @@ browser ─HTTPS─▶ Caddy :443 ─HTTP─▶ uvicorn :8000 ─▶ FastAPI
 
 ## Files in this directory
 
-| File              | Installed to                                | Purpose                          |
-|-------------------|---------------------------------------------|----------------------------------|
-| `Caddyfile`       | `/etc/caddy/Caddyfile`                      | Reverse proxy + HTTPS            |
-| `flexloop.service`| `/etc/systemd/system/flexloop.service`      | systemd unit for uvicorn         |
-| `README.md`       | —                                           | This walkthrough                 |
+| File                | Installed to                                | Purpose                                    |
+|---------------------|---------------------------------------------|--------------------------------------------|
+| `Caddyfile`         | `/etc/caddy/Caddyfile`                      | Reverse proxy + HTTPS                      |
+| `flexloop.service`  | `/etc/systemd/system/flexloop.service`      | systemd unit for uvicorn                   |
+| `README.md`         | —                                           | This walkthrough (human-oriented)          |
+| `agent-runbook.md`  | —                                           | Same deploy, optimized for AI agents       |
 
 ## 1. Prerequisites
 
@@ -114,6 +120,12 @@ sudo -u flexloop -H bash -c 'cd /opt/flexloop/flexloop-server && ./.venv/bin/pyt
 
 Prompts for a password twice (minimum 8 characters).
 
+**Non-interactive variant** (for scripted/agent deploys):
+```bash
+sudo -u flexloop -H bash -c "FLEXLOOP_ADMIN_PW='<password>' /opt/flexloop/flexloop-server/.venv/bin/python -m flexloop.admin.bootstrap create-admin <username> --password-env FLEXLOOP_ADMIN_PW"
+```
+Same flag works on `reset-admin-password`.
+
 ## 8. Install the systemd unit
 
 ```bash
@@ -159,11 +171,24 @@ curl -I https://flexloop.example.com/api/health
 cold-start default is `[http://localhost:5173, http://localhost:8000]`
 which excludes your production domain.
 
+**Option A — via the admin UI (recommended first time):**
 1. Visit `https://flexloop.example.com/admin` and log in with the
    user created in step 7.
 2. Navigate to **Config** in the sidebar.
 3. Under **Allowed origins**, add `https://flexloop.example.com`.
 4. **Save**. The CSRF middleware hot-reloads — no restart needed.
+
+**Option B — via the bootstrap CLI (no browser needed):**
+```bash
+sudo -u flexloop -H bash -c '/opt/flexloop/flexloop-server/.venv/bin/python -m flexloop.admin.bootstrap set-allowed-origins "https://flexloop.example.com,http://localhost:8000"'
+sudo systemctl restart flexloop.service
+```
+The CLI writes directly to the `app_settings` row, but the **already-running**
+`flexloop.service` caches the pre-update value in its `Settings` singleton
+(`refresh_settings_from_db` only fires from `init_db` or the Config PUT
+endpoint). A `systemctl restart` forces `init_db` to re-read the row on
+boot. Option A avoids the restart by going through the Config endpoint,
+which calls `refresh_settings_from_db` inline.
 
 ## 11. Smoke test
 

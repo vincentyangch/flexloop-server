@@ -13,7 +13,13 @@ from flexloop.admin.auth import (
     revoke_session,
     verify_password,
 )
-from flexloop.admin.bootstrap import create_admin_user, reset_admin_password
+from flexloop.admin.bootstrap import (
+    _parse_origins,
+    _read_password_from_env,
+    create_admin_user,
+    reset_admin_password,
+    set_allowed_origins,
+)
 from flexloop.models.admin_audit_log import AdminAuditLog
 from flexloop.models.admin_session import AdminSession
 from flexloop.models.admin_user import AdminUser
@@ -222,6 +228,86 @@ async def test_reset_admin_password(db_session):
 async def test_reset_admin_password_rejects_unknown(db_session):
     with pytest.raises(ValueError, match="not found"):
         await reset_admin_password(db_session, "nobody", "pw123456")
+
+
+# ---- Bootstrap non-interactive helpers (agent-deploy support) ----
+
+
+def test_read_password_from_env_returns_value(monkeypatch):
+    monkeypatch.setenv("FLEXLOOP_TEST_PW", "supersecret123")
+    assert _read_password_from_env("FLEXLOOP_TEST_PW") == "supersecret123"
+
+
+def test_read_password_from_env_raises_when_unset(monkeypatch):
+    monkeypatch.delenv("FLEXLOOP_TEST_PW_MISSING", raising=False)
+    with pytest.raises(ValueError, match="FLEXLOOP_TEST_PW_MISSING"):
+        _read_password_from_env("FLEXLOOP_TEST_PW_MISSING")
+
+
+def test_read_password_from_env_raises_when_too_short(monkeypatch):
+    monkeypatch.setenv("FLEXLOOP_TEST_PW", "short")
+    with pytest.raises(ValueError, match="at least 8"):
+        _read_password_from_env("FLEXLOOP_TEST_PW")
+
+
+def test_parse_origins_splits_and_strips_whitespace():
+    assert _parse_origins(" https://a.example.com , https://b.example.com ") == [
+        "https://a.example.com",
+        "https://b.example.com",
+    ]
+
+
+def test_parse_origins_accepts_http_localhost():
+    assert _parse_origins("http://localhost:8000") == ["http://localhost:8000"]
+
+
+def test_parse_origins_raises_on_empty():
+    with pytest.raises(ValueError, match="at least one"):
+        _parse_origins("")
+    with pytest.raises(ValueError, match="at least one"):
+        _parse_origins("   ,   ")
+
+
+def test_parse_origins_raises_on_invalid_scheme():
+    with pytest.raises(ValueError, match="http"):
+        _parse_origins("ftp://a.example.com")
+    with pytest.raises(ValueError, match="http"):
+        _parse_origins("example.com")
+
+
+async def test_set_allowed_origins_overwrites_existing_row(db_session):
+    seed = AppSettings(
+        id=1,
+        ai_provider="openai",
+        ai_model="gpt-4o-mini",
+        ai_api_key="",
+        ai_base_url="",
+        ai_temperature=0.7,
+        ai_max_tokens=2000,
+        ai_review_frequency="block",
+        ai_review_block_weeks=6,
+        admin_allowed_origins=["http://localhost:8000"],
+    )
+    db_session.add(seed)
+    await db_session.flush()
+
+    await set_allowed_origins(
+        db_session,
+        ["https://flexloop.example.com", "http://localhost:8000"],
+    )
+    await db_session.flush()
+
+    result = await db_session.execute(select(AppSettings).where(AppSettings.id == 1))
+    updated = result.scalar_one()
+    assert updated.admin_allowed_origins == [
+        "https://flexloop.example.com",
+        "http://localhost:8000",
+    ]
+
+
+async def test_set_allowed_origins_raises_when_row_missing(db_session):
+    with pytest.raises(ValueError, match="app_settings row not found"):
+        await set_allowed_origins(db_session, ["https://flexloop.example.com"])
 
 
 # ---- CSRF middleware tests ----
