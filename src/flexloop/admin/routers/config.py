@@ -46,6 +46,8 @@ class AppSettingsResponse(BaseModel):
     ai_model: str
     ai_api_key: str  # always masked
     ai_base_url: str
+    codex_auth_file: str
+    ai_reasoning_effort: str
     ai_temperature: float
     ai_max_tokens: int
     ai_review_frequency: str
@@ -66,6 +68,8 @@ class AppSettingsUpdate(BaseModel):
     ai_model: str | None = None
     ai_api_key: str | None = None
     ai_base_url: str | None = None
+    codex_auth_file: str | None = None
+    ai_reasoning_effort: str | None = None
     ai_temperature: float | None = None
     ai_max_tokens: int | None = None
     ai_review_frequency: str | None = None
@@ -86,6 +90,8 @@ class TestConnectionRequest(BaseModel):
     model: str | None = None
     api_key: str | None = None
     base_url: str | None = None
+    codex_auth_file: str | None = None
+    reasoning_effort: str | None = None
     temperature: float | None = None
     max_tokens: int | None = None
 
@@ -122,6 +128,8 @@ def _masked_dict(row: AppSettings) -> dict:
         "ai_model": row.ai_model,
         "ai_api_key": _mask_key(row.ai_api_key),
         "ai_base_url": row.ai_base_url,
+        "codex_auth_file": row.codex_auth_file,
+        "ai_reasoning_effort": row.ai_reasoning_effort,
         "ai_temperature": row.ai_temperature,
         "ai_max_tokens": row.ai_max_tokens,
         "ai_review_frequency": row.ai_review_frequency,
@@ -155,6 +163,8 @@ async def get_config(
         ai_model=row.ai_model,
         ai_api_key=_mask_key(row.ai_api_key),
         ai_base_url=row.ai_base_url,
+        codex_auth_file=row.codex_auth_file,
+        ai_reasoning_effort=row.ai_reasoning_effort,
         ai_temperature=row.ai_temperature,
         ai_max_tokens=row.ai_max_tokens,
         ai_review_frequency=row.ai_review_frequency,
@@ -219,6 +229,8 @@ async def update_config(
         ai_model=row.ai_model,
         ai_api_key=_mask_key(row.ai_api_key),
         ai_base_url=row.ai_base_url,
+        codex_auth_file=row.codex_auth_file,
+        ai_reasoning_effort=row.ai_reasoning_effort,
         ai_temperature=row.ai_temperature,
         ai_max_tokens=row.ai_max_tokens,
         ai_review_frequency=row.ai_review_frequency,

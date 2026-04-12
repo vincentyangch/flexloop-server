@@ -52,6 +52,8 @@ async def _seed_default_app_settings(db: AsyncSession) -> AppSettings:
         ai_model="gpt-4o-mini",
         ai_api_key="sk-test-1234567xyz",
         ai_base_url="",
+        codex_auth_file="~/.codex/auth.json",
+        ai_reasoning_effort="medium",
         ai_temperature=0.7,
         ai_max_tokens=2000,
         ai_review_frequency="block",
@@ -103,6 +105,19 @@ class TestGetConfig:
         res = await client.get("/api/admin/config", cookies=cookies)
         assert res.status_code == 200
         assert res.json()["ai_api_key"] == ""
+
+    async def test_get_config_includes_new_fields(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        _, cookies = await _make_admin_and_cookie(db_session)
+        await _seed_default_app_settings(db_session)
+
+        res = await client.get("/api/admin/config", cookies=cookies)
+
+        assert res.status_code == 200
+        body = res.json()
+        assert body["codex_auth_file"] == "~/.codex/auth.json"
+        assert body["ai_reasoning_effort"] == "medium"
 
 
 class TestUpdateConfig:
@@ -169,6 +184,32 @@ class TestUpdateConfig:
             await db_session.execute(select(AppSettings).where(AppSettings.id == 1))
         ).scalar_one()
         assert row.ai_api_key == "sk-new-key-9999abc"
+
+    async def test_put_config_updates_codex_fields(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        _, cookies = await _make_admin_and_cookie(db_session)
+        await _seed_default_app_settings(db_session)
+
+        res = await client.put(
+            "/api/admin/config",
+            json={
+                "codex_auth_file": "/tmp/custom-codex-auth.json",
+                "ai_reasoning_effort": "high",
+            },
+            cookies=cookies,
+            headers={"Origin": ORIGIN},
+        )
+
+        assert res.status_code == 200
+        body = res.json()
+        assert body["codex_auth_file"] == "/tmp/custom-codex-auth.json"
+        assert body["ai_reasoning_effort"] == "high"
+        row = (
+            await db_session.execute(select(AppSettings).where(AppSettings.id == 1))
+        ).scalar_one()
+        assert row.codex_auth_file == "/tmp/custom-codex-auth.json"
+        assert row.ai_reasoning_effort == "high"
 
     async def test_masked_key_input_is_treated_as_no_change(
         self, client: AsyncClient, db_session: AsyncSession
@@ -239,6 +280,34 @@ class TestUpdateConfig:
         # API key must be masked in both snapshots
         assert "sk-test" not in entry.before_json["ai_api_key"]
         assert "sk-test" not in entry.after_json["ai_api_key"]
+
+    async def test_put_config_audit_log_captures_new_fields(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        admin, cookies = await _make_admin_and_cookie(db_session)
+        await _seed_default_app_settings(db_session)
+
+        res = await client.put(
+            "/api/admin/config",
+            json={
+                "codex_auth_file": "/tmp/audit-auth.json",
+                "ai_reasoning_effort": "low",
+            },
+            cookies=cookies,
+            headers={"Origin": ORIGIN},
+        )
+
+        assert res.status_code == 200
+        entry = (
+            await db_session.execute(
+                select(AdminAuditLog).where(AdminAuditLog.action == "config_update")
+            )
+        ).scalar_one()
+        assert entry.admin_user_id == admin.id
+        assert entry.before_json["codex_auth_file"] == "~/.codex/auth.json"
+        assert entry.after_json["codex_auth_file"] == "/tmp/audit-auth.json"
+        assert entry.before_json["ai_reasoning_effort"] == "medium"
+        assert entry.after_json["ai_reasoning_effort"] == "low"
 
     async def test_no_audit_log_when_nothing_changes(
         self, client: AsyncClient, db_session: AsyncSession
