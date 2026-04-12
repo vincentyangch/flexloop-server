@@ -87,7 +87,7 @@ sudo apt-get install -y nodejs
 
 # Caddy v2
 curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' \
-  | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+  | sudo gpg --batch --yes --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
 curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' \
   | sudo tee /etc/apt/sources.list.d/caddy-stable.list
 sudo apt-get update && sudo apt-get install -y caddy
@@ -139,7 +139,7 @@ test -d /opt/flexloop/flexloop-server/data && echo "data dir: ok"
 **Critical flags:**
 - `uv sync --all-extras` is required — plain `uv sync` skips dev deps that some imports need.
 
-## Step 4 — Build the admin SPA and copy to the static mount
+## Step 4 — Build the admin SPA
 
 **cmd:**
 ```bash
@@ -148,11 +148,12 @@ set -euo pipefail
 cd /opt/flexloop/flexloop-server/admin-ui
 npm ci --legacy-peer-deps
 npm run build
-mkdir -p ../src/flexloop/static/admin
-rm -rf ../src/flexloop/static/admin/*
-cp -r dist/* ../src/flexloop/static/admin/
 '
 ```
+
+Vite is configured to output directly into `src/flexloop/static/admin/`
+(`build.outDir` + `emptyOutDir` in `vite.config.ts`), so no manual
+copy step is needed.
 
 **verify:**
 ```bash
@@ -162,7 +163,7 @@ test -d /opt/flexloop/flexloop-server/src/flexloop/static/admin/assets && echo "
 
 **Critical flags:**
 - `npm ci --legacy-peer-deps` is required — a TypeScript 6 / openapi-typescript peer conflict will break plain `npm ci`.
-- FastAPI reads `/admin` from `src/flexloop/static/admin/`. If you skip or mis-copy this step, `/admin` will return 404 "admin UI not built" at smoke-test time.
+- FastAPI reads `/admin` from `src/flexloop/static/admin/`. If the build didn't produce files there, `/admin` will return 404 "admin UI not built" at smoke-test time.
 
 ## Step 5 — Write the .env file
 
@@ -204,27 +205,31 @@ creates on first boot.
 sudo -u ubuntu -H bash -c '
 set -euo pipefail
 cd /opt/flexloop/flexloop-server
-./.venv/bin/uvicorn flexloop.main:app --host 127.0.0.1 --port 8000 \
+PYTHONPATH=src ./.venv/bin/uvicorn flexloop.main:app --host 127.0.0.1 --port 8000 \
   > /tmp/flexloop-first-boot.log 2>&1 &
 echo $! > /tmp/flexloop-first-boot.pid
 '
 sleep 12
-FB_PID=$(cat /tmp/flexloop-first-boot.pid)
-sudo kill -TERM "$FB_PID" 2>/dev/null || true
-sleep 2
-sudo pkill -9 -u ubuntu -f 'uvicorn flexloop.main' 2>/dev/null || true
 ```
 
 **verify:**
 ```bash
 test -f /opt/flexloop/flexloop-server/data/flexloop.db && echo "db: ok"
-grep -q "Application startup complete" /tmp/flexloop-first-boot.log && echo "startup: ok"
+curl -sf http://127.0.0.1:8000/api/health | grep -q '"status":"ok"' && echo "startup: ok"
 ```
 
-If `Application startup complete` is not in the log, print the log and
-stop:
+If the health check fails, print the log and stop:
 ```bash
 cat /tmp/flexloop-first-boot.log
+```
+
+After verification, shut down the first-boot process (step 9 will
+start it properly via systemd):
+```bash
+FB_PID=$(cat /tmp/flexloop-first-boot.pid)
+sudo kill -TERM "$FB_PID" 2>/dev/null || true
+sleep 2
+sudo pkill -9 -u ubuntu -f 'uvicorn flexloop.main' 2>/dev/null || true
 ```
 
 ## Step 7 — Create the first admin user (non-interactive)
@@ -234,7 +239,7 @@ cat /tmp/flexloop-first-boot.log
 sudo -u ubuntu -H bash -c "
 set -euo pipefail
 cd /opt/flexloop/flexloop-server
-FLEXLOOP_ADMIN_PW='<ADMIN_PASSWORD>' ./.venv/bin/python -m flexloop.admin.bootstrap \
+PYTHONPATH=src FLEXLOOP_ADMIN_PW='<ADMIN_PASSWORD>' ./.venv/bin/python -m flexloop.admin.bootstrap \
   create-admin '<ADMIN_USERNAME>' --password-env FLEXLOOP_ADMIN_PW
 "
 ```
@@ -264,7 +269,7 @@ the default allowed-origins list contains only localhost.
 sudo -u ubuntu -H bash -c "
 set -euo pipefail
 cd /opt/flexloop/flexloop-server
-./.venv/bin/python -m flexloop.admin.bootstrap \
+PYTHONPATH=src ./.venv/bin/python -m flexloop.admin.bootstrap \
   set-allowed-origins 'https://<DOMAIN>,http://localhost:8000'
 "
 ```
@@ -378,7 +383,7 @@ Next steps for you (human):
 | Step 1: `apt-get install caddy` fails                | Cloudsmith repo not added cleanly     | Re-run the `curl … dl.cloudsmith.io … tee` + `apt update`        |
 | Step 3: `uv sync` fails on a compiled dep            | Missing build tools                   | `sudo apt install -y build-essential python3.12-dev` then retry |
 | Step 4: `npm ci` fails with peer-dep errors          | Forgot `--legacy-peer-deps`           | Re-run step 4 verbatim                                          |
-| Step 6: `Application startup complete` never appears | Migration crash, bad .env, missing dir | `cat /tmp/flexloop-first-boot.log`                              |
+| Step 6: health check fails after first boot          | Migration crash, bad .env, missing dir | `cat /tmp/flexloop-first-boot.log`                              |
 | Step 7: `create-admin` errors "already exists"       | Runbook re-run                        | Soft success — keep going                                        |
 | Step 8: `app_settings row not found`                 | Step 6 never booted far enough        | Re-run step 6 with a longer sleep, verify log                   |
 | Step 9: `systemctl is-active` shows `inactive`       | uvicorn crashes at start              | `journalctl -u flexloop -n 100 --no-pager`                      |

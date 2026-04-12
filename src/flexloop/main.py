@@ -106,7 +106,7 @@ app.include_router(admin_playground_router)
 app.include_router(admin_triggers_router)
 
 
-@app.get("/api/health")
+@app.api_route("/api/health", methods=["GET", "HEAD"])
 async def health_check():
     return {"status": "ok", "version": "1.0.0"}
 
@@ -125,13 +125,13 @@ if _STATIC_ADMIN.exists():
         name="admin_assets",
     )
 
-    @app.get("/admin")
+    @app.api_route("/admin", methods=["GET", "HEAD"])
     async def admin_root():
         if not _ADMIN_INDEX.exists():
             raise HTTPException(status_code=404, detail="admin UI not built")
         return FileResponse(_ADMIN_INDEX)
 
-    @app.get("/admin/{path:path}")
+    @app.api_route("/admin/{path:path}", methods=["GET", "HEAD"])
     async def admin_spa_fallback(path: str):
         """Serve index.html for any /admin/* path (SPA client-side routing)."""
         if not _ADMIN_INDEX.exists():

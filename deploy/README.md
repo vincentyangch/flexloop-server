@@ -70,18 +70,15 @@ sudo -u ubuntu -H bash <<'EOF'
 cd /opt/flexloop/flexloop-server/admin-ui
 npm ci --legacy-peer-deps
 npm run build
-mkdir -p ../src/flexloop/static/admin
-rm -rf ../src/flexloop/static/admin/*
-cp -r dist/* ../src/flexloop/static/admin/
 EOF
 ```
 
 Notes:
 - **`--legacy-peer-deps` is required** due to a TypeScript 6 /
   openapi-typescript peer conflict.
-- The build output MUST be copied into `src/flexloop/static/admin/` —
-  FastAPI mounts from there (see `src/flexloop/main.py`). Without this
-  step, `/admin` returns 404 "admin UI not built".
+- Vite is configured to output directly into `src/flexloop/static/admin/`
+  (`build.outDir` + `emptyOutDir` in `vite.config.ts`), so no manual
+  copy step is needed. FastAPI mounts from there (see `src/flexloop/main.py`).
 
 ## 5. Configure `.env`
 
@@ -112,24 +109,25 @@ for details.
 ## 6. First boot (runs migrations)
 
 ```bash
-sudo -u ubuntu -H bash -c 'cd /opt/flexloop/flexloop-server && ./.venv/bin/uvicorn flexloop.main:app --host 127.0.0.1 --port 8000'
+sudo -u ubuntu -H bash -c 'cd /opt/flexloop/flexloop-server && PYTHONPATH=src ./.venv/bin/uvicorn flexloop.main:app --host 127.0.0.1 --port 8000'
 ```
 
-Wait for `Application startup complete.`, then Ctrl-C. This runs
-`init_db()` which creates all tables and applies Alembic migrations.
-Verify `data/flexloop.db` was created.
+Wait until `curl -sf http://127.0.0.1:8000/api/health` returns
+`{"status":"ok",...}`, then Ctrl-C. This runs `init_db()` which
+creates all tables and applies Alembic migrations. Verify
+`data/flexloop.db` was created.
 
 ## 7. Create the first admin user
 
 ```bash
-sudo -u ubuntu -H bash -c 'cd /opt/flexloop/flexloop-server && ./.venv/bin/python -m flexloop.admin.bootstrap create-admin <username>'
+sudo -u ubuntu -H bash -c 'cd /opt/flexloop/flexloop-server && PYTHONPATH=src ./.venv/bin/python -m flexloop.admin.bootstrap create-admin <username>'
 ```
 
 Prompts for a password twice (minimum 8 characters).
 
 **Non-interactive variant** (for scripted/agent deploys):
 ```bash
-sudo -u ubuntu -H bash -c "FLEXLOOP_ADMIN_PW='<password>' /opt/flexloop/flexloop-server/.venv/bin/python -m flexloop.admin.bootstrap create-admin <username> --password-env FLEXLOOP_ADMIN_PW"
+sudo -u ubuntu -H bash -c "PYTHONPATH=src FLEXLOOP_ADMIN_PW='<password>' /opt/flexloop/flexloop-server/.venv/bin/python -m flexloop.admin.bootstrap create-admin <username> --password-env FLEXLOOP_ADMIN_PW"
 ```
 Same flag works on `reset-admin-password`.
 
@@ -187,7 +185,7 @@ which excludes your production domain.
 
 **Option B — via the bootstrap CLI (no browser needed):**
 ```bash
-sudo -u ubuntu -H bash -c '/opt/flexloop/flexloop-server/.venv/bin/python -m flexloop.admin.bootstrap set-allowed-origins "https://flexloop.example.com,http://localhost:8000"'
+sudo -u ubuntu -H bash -c 'PYTHONPATH=src /opt/flexloop/flexloop-server/.venv/bin/python -m flexloop.admin.bootstrap set-allowed-origins "https://flexloop.example.com,http://localhost:8000"'
 sudo systemctl restart flexloop.service
 ```
 The CLI writes directly to the `app_settings` row, but the **already-running**
@@ -230,7 +228,6 @@ cd /opt/flexloop/flexloop-server
 git fetch origin && git checkout main && git pull
 uv sync --all-extras
 cd admin-ui && npm ci --legacy-peer-deps && npm run build
-rm -rf ../src/flexloop/static/admin/* && cp -r dist/* ../src/flexloop/static/admin/
 EOF
 sudo systemctl restart flexloop.service
 ```
@@ -264,7 +261,6 @@ cd /opt/flexloop/flexloop-server
 git reset --hard <previous-commit>
 uv sync --all-extras
 cd admin-ui && npm ci --legacy-peer-deps && npm run build
-rm -rf ../src/flexloop/static/admin/* && cp -r dist/* ../src/flexloop/static/admin/
 EOF
 sudo systemctl restart flexloop.service
 ```

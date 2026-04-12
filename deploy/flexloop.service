@@ -7,6 +7,7 @@ Type=simple
 User=ubuntu
 Group=ubuntu
 WorkingDirectory=/opt/flexloop/flexloop-server
+Environment=PYTHONPATH=/opt/flexloop/flexloop-server/src
 
 # Uses the uv-managed .venv created by `uv sync --all-extras`.
 # No network at startup; all deps must already be installed.
