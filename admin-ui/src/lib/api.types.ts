@@ -2002,6 +2002,8 @@ export interface components {
             last_refresh?: string | null;
             /** Days Since Refresh */
             days_since_refresh?: number | null;
+            /** Days Until Expiry */
+            days_until_expiry?: number | null;
             /** Account Email */
             account_email?: string | null;
             /** Error */
