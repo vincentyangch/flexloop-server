@@ -425,3 +425,72 @@ def test_openclaw_unrecognized_format_raises_malformed(tmp_path):
     reader = CodexAuthReader(str(auth_file))
     with pytest.raises(CodexAuthMalformed, match="unrecognized auth file format"):
         reader.read_access_token()
+
+
+def test_openclaw_snapshot_healthy(tmp_path):
+    auth_file = tmp_path / "auth-profiles.json"
+    future = datetime.now(timezone.utc) + timedelta(days=10)
+    expires_at = int(future.timestamp() * 1000)
+    make_openclaw_auth_profiles(auth_file, expires_at=expires_at)
+    snap = CodexAuthReader(str(auth_file)).snapshot()
+    assert snap.status == "healthy"
+    assert snap.auth_mode == "openclaw-oauth"
+    assert snap.account_email == "operator@example.com"
+    assert snap.days_until_expiry is not None
+    assert snap.days_until_expiry > 9.0
+
+
+def test_openclaw_snapshot_degraded_yellow(tmp_path):
+    auth_file = tmp_path / "auth-profiles.json"
+    future = datetime.now(timezone.utc) + timedelta(days=3)
+    expires_at = int(future.timestamp() * 1000)
+    make_openclaw_auth_profiles(auth_file, expires_at=expires_at)
+    snap = CodexAuthReader(str(auth_file)).snapshot()
+    assert snap.status == "degraded_yellow"
+    assert snap.days_until_expiry is not None
+    assert 2.0 < snap.days_until_expiry < 5.0
+
+
+def test_openclaw_snapshot_degraded_red(tmp_path):
+    auth_file = tmp_path / "auth-profiles.json"
+    future = datetime.now(timezone.utc) + timedelta(hours=12)
+    expires_at = int(future.timestamp() * 1000)
+    make_openclaw_auth_profiles(auth_file, expires_at=expires_at)
+    snap = CodexAuthReader(str(auth_file)).snapshot()
+    assert snap.status == "degraded_red"
+    assert snap.days_until_expiry is not None
+    assert snap.days_until_expiry < 2.0
+
+
+def test_openclaw_snapshot_expired_is_down(tmp_path):
+    auth_file = tmp_path / "auth-profiles.json"
+    past = datetime.now(timezone.utc) - timedelta(days=1)
+    expires_at = int(past.timestamp() * 1000)
+    make_openclaw_auth_profiles(auth_file, expires_at=expires_at)
+    snap = CodexAuthReader(str(auth_file)).snapshot()
+    assert snap.status == "down"
+    assert snap.error_code == "expired"
+
+
+def test_openclaw_snapshot_epoch_zero_is_down(tmp_path):
+    auth_file = tmp_path / "auth-profiles.json"
+    make_openclaw_auth_profiles(auth_file, expires_at=0)
+    snap = CodexAuthReader(str(auth_file)).snapshot()
+    assert snap.status == "down"
+
+
+def test_openclaw_snapshot_missing_expires_at_is_healthy(tmp_path):
+    auth_file = tmp_path / "auth-profiles.json"
+    make_openclaw_auth_profiles(auth_file, omit_expires_at=True)
+    snap = CodexAuthReader(str(auth_file)).snapshot()
+    assert snap.status == "healthy"
+    assert snap.days_until_expiry is None
+
+
+def test_openclaw_snapshot_wrong_mode_preserves_metadata(tmp_path):
+    """wrong-mode snapshot for OpenClaw data should still show accountId."""
+    auth_file = tmp_path / "auth-profiles.json"
+    make_openclaw_auth_profiles(auth_file, profile_type="api_key")
+    snap = CodexAuthReader(str(auth_file)).snapshot()
+    assert snap.status == "down"
+    assert snap.error_code == "wrong_mode"

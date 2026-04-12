@@ -102,6 +102,19 @@ class CodexAuthReader:
             )
         except CodexAuthWrongMode as e:
             data = e.data
+            if "accountId" in data or "expires_at" in data:
+                expiry_dt = self._parse_expires_at(data.get("expires_at"))
+                return CodexAuthSnapshot(
+                    status="down",
+                    file_exists=True,
+                    file_path=self._resolved_path,
+                    auth_mode=data.get("type"),
+                    last_refresh=expiry_dt,
+                    days_until_expiry=self._compute_days_until(expiry_dt),
+                    account_email=data.get("accountId"),
+                    error_code="wrong_mode",
+                    error=str(e),
+                )
             last_refresh = self._parse_last_refresh(data.get("last_refresh"))
             tokens = data.get("tokens") if isinstance(data.get("tokens"), dict) else {}
             email = self._decode_id_token_email(tokens.get("id_token"))
@@ -118,6 +131,25 @@ class CodexAuthReader:
             )
 
         auth_mode = data["auth_mode"]
+        if auth_mode == "openclaw-oauth":
+            expires_at_ms = data.get("expires_at")
+            expiry_dt = self._parse_expires_at(expires_at_ms)
+            days_until = self._compute_days_until(expiry_dt)
+            account_email = data.get("account_id")
+            status, error_code, error = self._classify_expiry_freshness(days_until)
+
+            return CodexAuthSnapshot(
+                status=status,
+                file_exists=True,
+                file_path=self._resolved_path,
+                auth_mode=auth_mode,
+                last_refresh=expiry_dt,
+                days_until_expiry=days_until,
+                account_email=account_email,
+                error_code=error_code,
+                error=error,
+            )
+
         last_refresh = self._parse_last_refresh(data.get("last_refresh"))
         days_since_refresh = self._compute_days_since(last_refresh)
         tokens = data.get("tokens", {})
@@ -271,11 +303,28 @@ class CodexAuthReader:
         return parsed
 
     @staticmethod
+    def _parse_expires_at(value: Any) -> datetime | None:
+        """Convert millisecond epoch timestamp to datetime."""
+        if value is None or not isinstance(value, (int, float)):
+            return None
+        if value <= 0:
+            return datetime.fromtimestamp(0, tz=timezone.utc)
+        return datetime.fromtimestamp(value / 1000.0, tz=timezone.utc)
+
+    @staticmethod
     def _compute_days_since(last_refresh: datetime | None) -> float | None:
         if last_refresh is None:
             return None
         now = datetime.now(timezone.utc)
         delta = now - last_refresh
+        return delta.total_seconds() / 86400.0
+
+    @staticmethod
+    def _compute_days_until(expiry: datetime | None) -> float | None:
+        if expiry is None:
+            return None
+        now = datetime.now(timezone.utc)
+        delta = expiry - now
         return delta.total_seconds() / 86400.0
 
     @staticmethod
@@ -295,6 +344,32 @@ class CodexAuthReader:
             return None
         email = payload.get("email")
         return email if isinstance(email, str) else None
+
+    @staticmethod
+    def _classify_expiry_freshness(
+        days_until_expiry: float | None,
+    ) -> tuple[str, str | None, str | None]:
+        if days_until_expiry is None:
+            return "healthy", None, None
+        if days_until_expiry <= 0:
+            return (
+                "down",
+                "expired",
+                f"session expired {abs(days_until_expiry):.1f} days ago",
+            )
+        if days_until_expiry < 2.0:
+            return (
+                "degraded_red",
+                None,
+                f"session expires in {days_until_expiry:.1f} days",
+            )
+        if days_until_expiry < 5.0:
+            return (
+                "degraded_yellow",
+                None,
+                f"session expires in {days_until_expiry:.1f} days",
+            )
+        return "healthy", None, None
 
     @staticmethod
     def _classify_freshness(
