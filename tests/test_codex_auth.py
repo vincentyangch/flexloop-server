@@ -392,3 +392,36 @@ def test_openclaw_multiple_profiles_picks_codex(tmp_path):
     reader = CodexAuthReader(str(auth_file))
     token = reader.read_access_token()
     assert token == "test-access-token-abc123"
+
+
+def test_openclaw_no_codex_profile_raises_wrong_mode(tmp_path):
+    auth_file = tmp_path / "auth-profiles.json"
+    make_openclaw_auth_profiles(auth_file, provider="anthropic")
+    reader = CodexAuthReader(str(auth_file))
+    with pytest.raises(CodexAuthWrongMode, match="no openai-codex profile"):
+        reader.read_access_token()
+
+
+def test_openclaw_wrong_type_raises_wrong_mode(tmp_path):
+    auth_file = tmp_path / "auth-profiles.json"
+    make_openclaw_auth_profiles(auth_file, profile_type="api_key")
+    reader = CodexAuthReader(str(auth_file))
+    with pytest.raises(CodexAuthWrongMode, match="expected 'oauth'"):
+        reader.read_access_token()
+
+
+def test_openclaw_missing_access_token_raises_malformed(tmp_path):
+    auth_file = tmp_path / "auth-profiles.json"
+    make_openclaw_auth_profiles(auth_file, omit_access_token=True)
+    reader = CodexAuthReader(str(auth_file))
+    with pytest.raises(CodexAuthMalformed, match="access_token missing"):
+        reader.read_access_token()
+
+
+def test_openclaw_unrecognized_format_raises_malformed(tmp_path):
+    """File has neither OpenClaw nor Codex CLI markers."""
+    auth_file = tmp_path / "auth.json"
+    auth_file.write_text('{"foo": "bar"}')
+    reader = CodexAuthReader(str(auth_file))
+    with pytest.raises(CodexAuthMalformed, match="unrecognized auth file format"):
+        reader.read_access_token()
