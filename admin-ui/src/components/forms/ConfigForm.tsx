@@ -173,6 +173,7 @@ export function ConfigForm({ defaultValues, onSubmit, isSaving = false }: Props)
               <Input
                 id="codex_auth_file"
                 className="font-mono"
+                placeholder="~/.codex/auth.json or ~/.openclaw/.../auth-profiles.json"
                 {...register("codex_auth_file")}
               />
             </div>
