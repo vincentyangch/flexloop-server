@@ -15,6 +15,7 @@ from typing import Any
 _DEFAULT_ACCESS_TOKEN = "test-access-token-abc123"
 _DEFAULT_ID_TOKEN_EMAIL = "operator@example.com"
 _DEFAULT_REFRESH_TOKEN = "test-refresh-token-xyz789"
+_DEFAULT_OPENCLAW_ACCOUNT_ID = "operator@example.com"
 
 
 def _make_id_token(email: str | None) -> str:
@@ -106,6 +107,58 @@ def make_auth_json(
             tokens["access_token"] = access_token
         data["tokens"] = tokens
 
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data))
+    return path
+
+
+def make_openclaw_auth_profiles(
+    path: Path,
+    *,
+    provider: str = "openai-codex",
+    profile_type: str = "oauth",
+    access_token: str | None = _DEFAULT_ACCESS_TOKEN,
+    refresh_token: str | None = _DEFAULT_REFRESH_TOKEN,
+    expires_at: int | None = None,
+    account_id: str | None = _DEFAULT_OPENCLAW_ACCOUNT_ID,
+    omit_access_token: bool = False,
+    omit_expires_at: bool = False,
+    extra_profiles: dict[str, dict[str, Any]] | None = None,
+    raw_override: str | None = None,
+) -> Path:
+    """Write an OpenClaw auth-profiles.json-shaped file to ``path``.
+
+    Defaults produce a valid file with one ``openai-codex`` profile
+    whose token expires 7 days from now.
+    """
+    if raw_override is not None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(raw_override)
+        return path
+
+    if expires_at is None and not omit_expires_at:
+        from datetime import timedelta
+
+        expires_at = int(
+            (datetime.now(timezone.utc) + timedelta(days=7)).timestamp() * 1000
+        )
+
+    profile: dict[str, Any] = {
+        "type": profile_type,
+        "provider": provider,
+        "refresh_token": refresh_token,
+        "accountId": account_id,
+    }
+    if not omit_access_token:
+        profile["access_token"] = access_token
+    if not omit_expires_at and expires_at is not None:
+        profile["expires_at"] = expires_at
+
+    profiles: dict[str, Any] = {f"{provider}:default": profile}
+    if extra_profiles:
+        profiles.update(extra_profiles)
+
+    data = {"version": 1, "profiles": profiles}
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data))
     return path
