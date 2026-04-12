@@ -53,6 +53,15 @@ echo "DNS resolves to: $DNS_IP"
 test "$VPS_IP" = "$DNS_IP" && echo "dns: ok" || echo "dns: MISMATCH - fix before step 10"
 ```
 
+```bash
+# 4. Codex session (soft check — doesn't block deploy)
+if [ -f /home/ubuntu/.codex/auth.json ]; then
+    echo "codex: auth.json present (openai-codex provider ready)"
+else
+    echo "codex: auth.json missing — run 'codex login' or 'openclaw auth login --provider openai-codex' if you plan to use openai-codex provider"
+fi
+```
+
 **If the DNS check fails**, stop and ask the human to point DNS first.
 Don't proceed — step 10 (Caddy) will fail to issue a cert and lock you
 out of HTTPS.
@@ -91,28 +100,24 @@ python3.12 --version && uv --version && node --version && caddy version
 All four commands must print valid versions. On failure: report which
 tool failed to install.
 
-## Step 2 — Create the system user
+## Step 2 — Ensure `ubuntu` owns `/opt/flexloop`
 
 **cmd:**
 ```bash
-sudo useradd --system --create-home --shell /bin/bash flexloop || true
 sudo mkdir -p /opt/flexloop
-sudo chown flexloop:flexloop /opt/flexloop
+sudo chown ubuntu:ubuntu /opt/flexloop
 ```
-The `|| true` makes this idempotent — if `flexloop` already exists,
-carry on.
 
 **verify:**
 ```bash
-id flexloop
-test "$(stat -c '%U' /opt/flexloop)" = "flexloop" && echo "owner: ok"
+test "$(stat -c '%U' /opt/flexloop)" = "ubuntu" && echo "owner: ok"
 ```
 
 ## Step 3 — Clone and install Python dependencies
 
 **cmd:**
 ```bash
-sudo -u flexloop -H bash -c '
+sudo -u ubuntu -H bash -c '
 set -euo pipefail
 cd /opt/flexloop
 if [ -d flexloop-server/.git ]; then
@@ -138,7 +143,7 @@ test -d /opt/flexloop/flexloop-server/data && echo "data dir: ok"
 
 **cmd:**
 ```bash
-sudo -u flexloop -H bash -c '
+sudo -u ubuntu -H bash -c '
 set -euo pipefail
 cd /opt/flexloop/flexloop-server/admin-ui
 npm ci --legacy-peer-deps
@@ -163,7 +168,7 @@ test -d /opt/flexloop/flexloop-server/src/flexloop/static/admin/assets && echo "
 
 **cmd:**
 ```bash
-sudo -u flexloop tee /opt/flexloop/flexloop-server/.env > /dev/null <<'EOF'
+sudo -u ubuntu tee /opt/flexloop/flexloop-server/.env > /dev/null <<'EOF'
 DATABASE_URL=sqlite+aiosqlite:///./data/flexloop.db
 AI_PROVIDER=openai
 AI_MODEL=gpt-4o-mini
@@ -177,14 +182,14 @@ HOST=127.0.0.1
 PORT=8000
 EOF
 sudo chmod 600 /opt/flexloop/flexloop-server/.env
-sudo chown flexloop:flexloop /opt/flexloop/flexloop-server/.env
+sudo chown ubuntu:ubuntu /opt/flexloop/flexloop-server/.env
 ```
 If the human didn't provide `<AI_API_KEY>`, leave it empty — it can be
 set via the admin Config page after first login.
 
 **verify:**
 ```bash
-sudo -u flexloop grep -q 'DATABASE_URL=sqlite+aiosqlite:///./data/flexloop.db' /opt/flexloop/flexloop-server/.env && echo "env: ok"
+sudo -u ubuntu grep -q 'DATABASE_URL=sqlite+aiosqlite:///./data/flexloop.db' /opt/flexloop/flexloop-server/.env && echo "env: ok"
 test "$(stat -c '%a' /opt/flexloop/flexloop-server/.env)" = "600" && echo "perms: ok"
 ```
 
@@ -196,7 +201,7 @@ creates on first boot.
 
 **cmd:**
 ```bash
-sudo -u flexloop -H bash -c '
+sudo -u ubuntu -H bash -c '
 set -euo pipefail
 cd /opt/flexloop/flexloop-server
 ./.venv/bin/uvicorn flexloop.main:app --host 127.0.0.1 --port 8000 \
@@ -207,7 +212,7 @@ sleep 12
 FB_PID=$(cat /tmp/flexloop-first-boot.pid)
 sudo kill -TERM "$FB_PID" 2>/dev/null || true
 sleep 2
-sudo pkill -9 -u flexloop -f 'uvicorn flexloop.main' 2>/dev/null || true
+sudo pkill -9 -u ubuntu -f 'uvicorn flexloop.main' 2>/dev/null || true
 ```
 
 **verify:**
@@ -226,7 +231,7 @@ cat /tmp/flexloop-first-boot.log
 
 **cmd:**
 ```bash
-sudo -u flexloop -H bash -c "
+sudo -u ubuntu -H bash -c "
 set -euo pipefail
 cd /opt/flexloop/flexloop-server
 FLEXLOOP_ADMIN_PW='<ADMIN_PASSWORD>' ./.venv/bin/python -m flexloop.admin.bootstrap \
@@ -256,7 +261,7 @@ the default allowed-origins list contains only localhost.
 
 **cmd:**
 ```bash
-sudo -u flexloop -H bash -c "
+sudo -u ubuntu -H bash -c "
 set -euo pipefail
 cd /opt/flexloop/flexloop-server
 ./.venv/bin/python -m flexloop.admin.bootstrap \
@@ -391,7 +396,6 @@ sudo systemctl disable flexloop 2>/dev/null || true
 sudo rm -f /etc/systemd/system/flexloop.service /etc/caddy/Caddyfile
 sudo systemctl daemon-reload
 sudo rm -rf /opt/flexloop
-sudo userdel -r flexloop 2>/dev/null || true
 ```
 
 Then re-run the runbook from step 1.

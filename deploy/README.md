@@ -38,18 +38,17 @@ browser ─HTTPS─▶ Caddy :443 ─HTTP─▶ uvicorn :8000 ─▶ FastAPI
   `curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - && sudo apt install -y nodejs`
 - **Caddy v2** — see <https://caddyserver.com/docs/install#debian-ubuntu-raspbian>
 
-## 2. Create the system user
+## 2. Ensure `ubuntu` owns `/opt/flexloop`
 
 ```bash
-sudo useradd --system --create-home --shell /bin/bash flexloop
 sudo mkdir -p /opt/flexloop
-sudo chown flexloop:flexloop /opt/flexloop
+sudo chown ubuntu:ubuntu /opt/flexloop
 ```
 
 ## 3. Clone and install Python deps
 
 ```bash
-sudo -u flexloop -H bash <<'EOF'
+sudo -u ubuntu -H bash <<'EOF'
 cd /opt/flexloop
 git clone <your-repo-url> flexloop-server
 cd flexloop-server
@@ -67,7 +66,7 @@ Notes:
 ## 4. Build the admin SPA
 
 ```bash
-sudo -u flexloop -H bash <<'EOF'
+sudo -u ubuntu -H bash <<'EOF'
 cd /opt/flexloop/flexloop-server/admin-ui
 npm ci --legacy-peer-deps
 npm run build
@@ -87,8 +86,8 @@ Notes:
 ## 5. Configure `.env`
 
 ```bash
-sudo -u flexloop cp /opt/flexloop/flexloop-server/.env.example /opt/flexloop/flexloop-server/.env
-sudo -u flexloop nano /opt/flexloop/flexloop-server/.env
+sudo -u ubuntu cp /opt/flexloop/flexloop-server/.env.example /opt/flexloop/flexloop-server/.env
+sudo -u ubuntu nano /opt/flexloop/flexloop-server/.env
 ```
 
 Recommended changes:
@@ -102,10 +101,18 @@ origins) are **DB-backed and hot-reloaded** from the `app_settings`
 row. `.env` values are just cold-start defaults. After first boot,
 edit them from the admin **Config** page — no restart needed.
 
+**Using the Codex (OAuth) provider:** If this VPS also runs OpenClaw
+(or any tool that maintains `~/.codex/auth.json`), you can use the
+`openai-codex` provider instead of providing an API key. After first
+login, go to **Config**, pick **OpenAI Codex (OAuth)**, and save. The
+Codex status panel shows whether the session file is healthy. See
+`docs/superpowers/specs/2026-04-11-codex-oauth-provider-design.md`
+for details.
+
 ## 6. First boot (runs migrations)
 
 ```bash
-sudo -u flexloop -H bash -c 'cd /opt/flexloop/flexloop-server && ./.venv/bin/uvicorn flexloop.main:app --host 127.0.0.1 --port 8000'
+sudo -u ubuntu -H bash -c 'cd /opt/flexloop/flexloop-server && ./.venv/bin/uvicorn flexloop.main:app --host 127.0.0.1 --port 8000'
 ```
 
 Wait for `Application startup complete.`, then Ctrl-C. This runs
@@ -115,14 +122,14 @@ Verify `data/flexloop.db` was created.
 ## 7. Create the first admin user
 
 ```bash
-sudo -u flexloop -H bash -c 'cd /opt/flexloop/flexloop-server && ./.venv/bin/python -m flexloop.admin.bootstrap create-admin <username>'
+sudo -u ubuntu -H bash -c 'cd /opt/flexloop/flexloop-server && ./.venv/bin/python -m flexloop.admin.bootstrap create-admin <username>'
 ```
 
 Prompts for a password twice (minimum 8 characters).
 
 **Non-interactive variant** (for scripted/agent deploys):
 ```bash
-sudo -u flexloop -H bash -c "FLEXLOOP_ADMIN_PW='<password>' /opt/flexloop/flexloop-server/.venv/bin/python -m flexloop.admin.bootstrap create-admin <username> --password-env FLEXLOOP_ADMIN_PW"
+sudo -u ubuntu -H bash -c "FLEXLOOP_ADMIN_PW='<password>' /opt/flexloop/flexloop-server/.venv/bin/python -m flexloop.admin.bootstrap create-admin <username> --password-env FLEXLOOP_ADMIN_PW"
 ```
 Same flag works on `reset-admin-password`.
 
@@ -138,7 +145,7 @@ sudo systemctl status flexloop.service
 Should show `active (running)`. If it fails:
 - `sudo journalctl -u flexloop.service -n 50` to see the error
 - Check `.venv/bin/uvicorn` exists (step 3 ran cleanly)
-- Check `.env` is readable by the `flexloop` user
+- Check `.env` is readable by the `ubuntu` user
 
 ## 9. Install the Caddy config
 
@@ -180,7 +187,7 @@ which excludes your production domain.
 
 **Option B — via the bootstrap CLI (no browser needed):**
 ```bash
-sudo -u flexloop -H bash -c '/opt/flexloop/flexloop-server/.venv/bin/python -m flexloop.admin.bootstrap set-allowed-origins "https://flexloop.example.com,http://localhost:8000"'
+sudo -u ubuntu -H bash -c '/opt/flexloop/flexloop-server/.venv/bin/python -m flexloop.admin.bootstrap set-allowed-origins "https://flexloop.example.com,http://localhost:8000"'
 sudo systemctl restart flexloop.service
 ```
 The CLI writes directly to the `app_settings` row, but the **already-running**
@@ -218,7 +225,7 @@ viewable at `/admin/logs`.
 ### Updates
 
 ```bash
-sudo -u flexloop -H bash <<'EOF'
+sudo -u ubuntu -H bash <<'EOF'
 cd /opt/flexloop/flexloop-server
 git fetch origin && git checkout main && git pull
 uv sync --all-extras
@@ -241,7 +248,7 @@ For automated daily backups, use cron + SQLite's consistent-snapshot
 `.backup` command (safe while the app has the DB open):
 
 ```cron
-0 3 * * * flexloop sqlite3 /opt/flexloop/flexloop-server/data/flexloop.db ".backup /opt/flexloop/flexloop-server/backups/flexloop_$(date +\%Y\%m\%d).db"
+0 3 * * * ubuntu sqlite3 /opt/flexloop/flexloop-server/data/flexloop.db ".backup /opt/flexloop/flexloop-server/backups/flexloop_$(date +\%Y\%m\%d).db"
 ```
 
 Pair with a retention job to prune old files if the backups directory
@@ -252,7 +259,7 @@ grows — e.g. `find /opt/flexloop/flexloop-server/backups -name 'flexloop_*.db'
 If an update breaks things:
 
 ```bash
-sudo -u flexloop -H bash <<'EOF'
+sudo -u ubuntu -H bash <<'EOF'
 cd /opt/flexloop/flexloop-server
 git reset --hard <previous-commit>
 uv sync --all-extras
@@ -273,6 +280,12 @@ snapshot (`POST /api/admin/backups/{name}/restore`).
   `admin-ui/` SPA, so the docker path currently serves a broken admin.
   If you prefer docker-compose, patch the Dockerfile with a multi-stage
   node build before `COPY src/`. Otherwise use this systemd path.
+- **Codex session expiry.** If the `openai-codex` provider is active
+  and AI features start returning errors, the most common cause is an
+  expired Codex session. Check the **Health** page — the Codex session
+  card shows the last refresh time and status. Re-authenticate with
+  `codex login` (or `openclaw auth login --provider openai-codex`) on
+  the VPS to refresh the session.
 - **No horizontal scaling.** The ring-buffer log handler and in-memory
   SSE client registry are per-process. This deployment assumes a single
   uvicorn worker on a single VPS. Do NOT add `--workers 2` to the

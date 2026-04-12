@@ -4,8 +4,8 @@ After=network.target
 
 [Service]
 Type=simple
-User=flexloop
-Group=flexloop
+User=ubuntu
+Group=ubuntu
 WorkingDirectory=/opt/flexloop/flexloop-server
 
 # Uses the uv-managed .venv created by `uv sync --all-extras`.
