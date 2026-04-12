@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { CodexStatusPanel } from "@/components/config/CodexStatusPanel";
 import { useHealth } from "@/hooks/useHealth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -99,6 +100,11 @@ export function HealthPage() {
           )}
           {ai_provider.error && (
             <KV label="Error" value={<span className="text-destructive">{ai_provider.error}</span>} />
+          )}
+          {ai_provider.provider === "openai-codex" && (
+            <div className="mt-4 border-t pt-4">
+              <CodexStatusPanel />
+            </div>
           )}
         </CardContent>
       </Card>
