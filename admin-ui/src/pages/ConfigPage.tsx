@@ -40,6 +40,8 @@ function formValuesToUpdate(v: ConfigFormValues): ConfigUpdate {
     ai_model: v.ai_model,
     ai_api_key: v.ai_api_key,
     ai_base_url: v.ai_base_url,
+    codex_auth_file: v.codex_auth_file,
+    ai_reasoning_effort: v.ai_reasoning_effort,
     ai_temperature: v.ai_temperature,
     ai_max_tokens: v.ai_max_tokens,
     ai_review_frequency: v.ai_review_frequency,
@@ -153,7 +155,7 @@ export function ConfigPage() {
       </Card>
 
       <ConfigForm
-        key={`${config.ai_provider}:${config.ai_model}:${config.ai_api_key}:${config.ai_base_url}:${config.ai_temperature}:${config.ai_max_tokens}:${config.ai_review_frequency}:${config.ai_review_block_weeks}:${(config.admin_allowed_origins ?? []).join(",")}`}
+        key={`${config.ai_provider}:${config.ai_model}:${config.ai_api_key}:${config.ai_base_url}:${config.codex_auth_file}:${config.ai_reasoning_effort}:${config.ai_temperature}:${config.ai_max_tokens}:${config.ai_review_frequency}:${config.ai_review_block_weeks}:${(config.admin_allowed_origins ?? []).join(",")}`}
         defaultValues={config}
         isSaving={save.isPending}
         onSubmit={async (v) => {

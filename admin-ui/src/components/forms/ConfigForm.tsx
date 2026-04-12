@@ -17,6 +17,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
+import { CodexStatusPanel } from "@/components/config/CodexStatusPanel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,12 +31,15 @@ import {
 import type { components } from "@/lib/api.types";
 
 type Config = components["schemas"]["AppSettingsResponse"];
+const reasoningEffortOptions = ["none", "minimal", "low", "medium", "high"] as const;
 
 const schema = z.object({
   ai_provider: z.string().min(1),
   ai_model: z.string().min(1),
   ai_api_key: z.string(),
   ai_base_url: z.string(),
+  codex_auth_file: z.string(),
+  ai_reasoning_effort: z.enum(reasoningEffortOptions),
   ai_temperature: z.coerce.number().min(0).max(2),
   ai_max_tokens: z.coerce.number().int().positive(),
   ai_review_frequency: z.string().min(1),
@@ -66,6 +70,8 @@ export function ConfigForm({ defaultValues, onSubmit, isSaving = false }: Props)
       ai_model: defaultValues.ai_model,
       ai_api_key: defaultValues.ai_api_key,
       ai_base_url: defaultValues.ai_base_url,
+      codex_auth_file: defaultValues.codex_auth_file ?? "~/.codex/auth.json",
+      ai_reasoning_effort: normalizeReasoningEffort(defaultValues.ai_reasoning_effort),
       ai_temperature: defaultValues.ai_temperature,
       ai_max_tokens: defaultValues.ai_max_tokens,
       ai_review_frequency: defaultValues.ai_review_frequency,
@@ -77,7 +83,9 @@ export function ConfigForm({ defaultValues, onSubmit, isSaving = false }: Props)
   });
 
   const provider = watch("ai_provider");
+  const reasoningEffort = watch("ai_reasoning_effort");
   const frequency = watch("ai_review_frequency");
+  const isCodex = provider === "openai-codex";
 
   return (
     <form
@@ -101,53 +109,93 @@ export function ConfigForm({ defaultValues, onSubmit, isSaving = false }: Props)
               <SelectItem value="openai-compatible">OpenAI-compatible</SelectItem>
               <SelectItem value="anthropic">Anthropic</SelectItem>
               <SelectItem value="ollama">Ollama</SelectItem>
+              <SelectItem value="openai-codex">OpenAI Codex (OAuth)</SelectItem>
             </SelectContent>
           </Select>
         </div>
+        {isCodex && <CodexStatusPanel />}
         <div className="space-y-1.5">
           <Label htmlFor="ai_model">Model</Label>
-          <Input id="ai_model" {...register("ai_model")} />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="ai_api_key">API Key</Label>
-          <div className="flex gap-2">
-            <Input
-              id="ai_api_key"
-              type={revealKey ? "text" : "password"}
-              className="font-mono"
-              {...register("ai_api_key")}
-            />
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setRevealKey((r) => !r)}
-            >
-              {revealKey ? "Hide" : "Reveal"}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => {
-                setValue("ai_api_key", "");
-                setFocus("ai_api_key");
-              }}
-            >
-              Rotate
-            </Button>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            The key is masked for display. Leave as-is to keep the current key,
-            or type a new value to rotate.
-          </p>
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="ai_base_url">Base URL</Label>
           <Input
-            id="ai_base_url"
-            placeholder="(optional — leave blank for provider default)"
-            {...register("ai_base_url")}
+            id="ai_model"
+            placeholder={isCodex ? "e.g. gpt-5.1-codex-max" : undefined}
+            {...register("ai_model")}
           />
         </div>
+        {!isCodex && (
+          <div className="space-y-1.5">
+            <Label htmlFor="ai_api_key">API Key</Label>
+            <div className="flex gap-2">
+              <Input
+                id="ai_api_key"
+                type={revealKey ? "text" : "password"}
+                className="font-mono"
+                {...register("ai_api_key")}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setRevealKey((r) => !r)}
+              >
+                {revealKey ? "Hide" : "Reveal"}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  setValue("ai_api_key", "");
+                  setFocus("ai_api_key");
+                }}
+              >
+                Rotate
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              The key is masked for display. Leave as-is to keep the current key,
+              or type a new value to rotate.
+            </p>
+          </div>
+        )}
+        {!isCodex && (
+          <div className="space-y-1.5">
+            <Label htmlFor="ai_base_url">Base URL</Label>
+            <Input
+              id="ai_base_url"
+              placeholder="(optional — leave blank for provider default)"
+              {...register("ai_base_url")}
+            />
+          </div>
+        )}
+        {isCodex && (
+          <>
+            <div className="space-y-1.5">
+              <Label htmlFor="codex_auth_file">Codex auth file</Label>
+              <Input
+                id="codex_auth_file"
+                className="font-mono"
+                {...register("codex_auth_file")}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="ai_reasoning_effort">Reasoning effort</Label>
+              <Select
+                value={reasoningEffort}
+                onValueChange={(v) => setValue("ai_reasoning_effort", v as ConfigFormValues["ai_reasoning_effort"])}
+              >
+                <SelectTrigger id="ai_reasoning_effort">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {reasoningEffortOptions.map((value) => (
+                    <SelectItem key={value} value={value}>
+                      {value}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </>
+        )}
       </section>
 
       {/* Generation Defaults */}
@@ -229,4 +277,11 @@ export function ConfigForm({ defaultValues, onSubmit, isSaving = false }: Props)
       </div>
     </form>
   );
+}
+
+function normalizeReasoningEffort(value?: string | null): ConfigFormValues["ai_reasoning_effort"] {
+  if (reasoningEffortOptions.includes(value as ConfigFormValues["ai_reasoning_effort"])) {
+    return value as ConfigFormValues["ai_reasoning_effort"];
+  }
+  return "medium";
 }
