@@ -829,6 +829,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Logs */
+        get: operations["get_logs_api_admin_logs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/logs/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Stream Logs */
+        get: operations["stream_logs_api_admin_logs_stream_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/users": {
         parameters: {
             query?: never;
@@ -1049,6 +1083,99 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/backups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Backups
+         * @description List all *.db files in the backup directory, sorted newest first.
+         *
+         *     Uses a direct directory scan instead of BackupService.list_backups()
+         *     which only finds ``flexloop_backup_*.db`` files. This ensures uploaded
+         *     files with custom names are visible.
+         */
+        get: operations["list_backups_api_admin_backups_get"];
+        put?: never;
+        /** Create Backup */
+        post: operations["create_backup_api_admin_backups_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/backups/{filename}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download Backup */
+        get: operations["download_backup_api_admin_backups__filename__download_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/backups/upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Upload Backup */
+        post: operations["upload_backup_api_admin_backups_upload_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/backups/{filename}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Restore Backup */
+        post: operations["restore_backup_api_admin_backups__filename__restore_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/backups/{filename}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Backup */
+        delete: operations["delete_backup_api_admin_backups__filename__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/exercises": {
         parameters: {
             query?: never;
@@ -1207,6 +1334,23 @@ export interface paths {
         post?: never;
         /** Delete Admin User */
         delete: operations["delete_admin_user_api_admin_admin_users__admin_user_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/config/codex-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Codex Status */
+        get: operations["get_codex_status_api_admin_config_codex_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1392,6 +1536,159 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/triggers/reload-prompts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reload Prompts */
+        post: operations["reload_prompts_api_admin_triggers_reload_prompts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/triggers/backup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Trigger Backup */
+        post: operations["trigger_backup_api_admin_triggers_backup_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/triggers/test-ai": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Trigger Test Ai */
+        post: operations["trigger_test_ai_api_admin_triggers_test_ai_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/triggers/run-migrations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Trigger Run Migrations */
+        post: operations["trigger_run_migrations_api_admin_triggers_run_migrations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/triggers/reseed-exercises": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Trigger Reseed Exercises */
+        post: operations["trigger_reseed_exercises_api_admin_triggers_reseed_exercises_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/triggers/vacuum-db": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Trigger Vacuum Db */
+        post: operations["trigger_vacuum_db_api_admin_triggers_vacuum_db_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/triggers/clear-sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Trigger Clear Sessions */
+        post: operations["trigger_clear_sessions_api_admin_triggers_clear_sessions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/triggers/clear-ai-usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Trigger Clear Ai Usage */
+        post: operations["trigger_clear_ai_usage_api_admin_triggers_clear_ai_usage_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/triggers/recompute-prs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Trigger Recompute Prs */
+        post: operations["trigger_recompute_prs_api_admin_triggers_recompute_prs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -1401,43 +1698,6 @@ export interface paths {
         };
         /** Health Check */
         get: operations["health_check_api_health_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/admin": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Admin Root */
-        get: operations["admin_root_admin_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/admin/{path}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Admin Spa Fallback
-         * @description Serve index.html for any /admin/* path (SPA client-side routing).
-         */
-        get: operations["admin_spa_fallback_admin__path__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1637,6 +1897,10 @@ export interface components {
             ai_api_key: string;
             /** Ai Base Url */
             ai_base_url: string;
+            /** Codex Auth File */
+            codex_auth_file: string;
+            /** Ai Reasoning Effort */
+            ai_reasoning_effort: string;
             /** Ai Temperature */
             ai_temperature: number;
             /** Ai Max Tokens */
@@ -1665,6 +1929,10 @@ export interface components {
             ai_api_key?: string | null;
             /** Ai Base Url */
             ai_base_url?: string | null;
+            /** Codex Auth File */
+            codex_auth_file?: string | null;
+            /** Ai Reasoning Effort */
+            ai_reasoning_effort?: string | null;
             /** Ai Temperature */
             ai_temperature?: number | null;
             /** Ai Max Tokens */
@@ -1675,6 +1943,32 @@ export interface components {
             ai_review_block_weeks?: number | null;
             /** Admin Allowed Origins */
             admin_allowed_origins?: string[] | null;
+        };
+        /** BackupResponse */
+        BackupResponse: {
+            /** Filename */
+            filename: string;
+            /** Size Bytes */
+            size_bytes: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** BackupRestoreResponse */
+        BackupRestoreResponse: {
+            /** Status */
+            status: string;
+            /** Restored From */
+            restored_from: string;
+            /** Safety Backup */
+            safety_backup: string;
+        };
+        /** Body_upload_backup_api_admin_backups_upload_post */
+        Body_upload_backup_api_admin_backups_upload_post: {
+            /** File */
+            file: string;
         };
         /** ChangePasswordRequest */
         ChangePasswordRequest: {
@@ -1693,6 +1987,27 @@ export interface components {
             output_tokens: number;
             /** Estimated Cost */
             estimated_cost: number | null;
+        };
+        /** CodexStatusResponse */
+        CodexStatusResponse: {
+            /** Status */
+            status: string;
+            /** File Exists */
+            file_exists: boolean;
+            /** File Path */
+            file_path: string;
+            /** Auth Mode */
+            auth_mode?: string | null;
+            /** Last Refresh */
+            last_refresh?: string | null;
+            /** Days Since Refresh */
+            days_since_refresh?: number | null;
+            /** Account Email */
+            account_email?: string | null;
+            /** Error */
+            error?: string | null;
+            /** Error Code */
+            error_code?: string | null;
         };
         /** DiffResponse */
         DiffResponse: {
@@ -2569,6 +2884,10 @@ export interface components {
             api_key_override?: string | null;
             /** Base Url Override */
             base_url_override?: string | null;
+            /** Codex Auth File Override */
+            codex_auth_file_override?: string | null;
+            /** Reasoning Effort Override */
+            reasoning_effort_override?: string | null;
         };
         /** PlaygroundTemplate */
         PlaygroundTemplate: {
@@ -2861,6 +3180,10 @@ export interface components {
             api_key?: string | null;
             /** Base Url */
             base_url?: string | null;
+            /** Codex Auth File */
+            codex_auth_file?: string | null;
+            /** Reasoning Effort */
+            reasoning_effort?: string | null;
             /** Temperature */
             temperature?: number | null;
             /** Max Tokens */
@@ -4950,6 +5273,74 @@ export interface operations {
             };
         };
     };
+    get_logs_api_admin_logs_get: {
+        parameters: {
+            query?: {
+                level?: string;
+                search?: string | null;
+                since?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stream_logs_api_admin_logs_stream_get: {
+        parameters: {
+            query?: {
+                level?: string;
+                search?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_users_api_admin_users_get: {
         parameters: {
             query?: {
@@ -5861,6 +6252,170 @@ export interface operations {
             };
         };
     };
+    list_backups_api_admin_backups_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BackupResponse"][];
+                };
+            };
+        };
+    };
+    create_backup_api_admin_backups_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BackupResponse"];
+                };
+            };
+        };
+    };
+    download_backup_api_admin_backups__filename__download_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                filename: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_backup_api_admin_backups_upload_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_backup_api_admin_backups_upload_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BackupResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    restore_backup_api_admin_backups__filename__restore_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                filename: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BackupRestoreResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_backup_api_admin_backups__filename__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                filename: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_exercises_api_admin_exercises_get: {
         parameters: {
             query?: {
@@ -6466,6 +7021,26 @@ export interface operations {
             };
         };
     };
+    get_codex_status_api_admin_config_codex_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CodexStatusResponse"];
+                };
+            };
+        };
+    };
     get_config_api_admin_config_get: {
         parameters: {
             query?: never;
@@ -6856,6 +7431,202 @@ export interface operations {
             };
         };
     };
+    reload_prompts_api_admin_triggers_reload_prompts_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
+                };
+            };
+        };
+    };
+    trigger_backup_api_admin_triggers_backup_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: number | string;
+                    };
+                };
+            };
+        };
+    };
+    trigger_test_ai_api_admin_triggers_test_ai_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: number | string;
+                    };
+                };
+            };
+        };
+    };
+    trigger_run_migrations_api_admin_triggers_run_migrations_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
+                };
+            };
+        };
+    };
+    trigger_reseed_exercises_api_admin_triggers_reseed_exercises_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: number | string;
+                    };
+                };
+            };
+        };
+    };
+    trigger_vacuum_db_api_admin_triggers_vacuum_db_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
+                };
+            };
+        };
+    };
+    trigger_clear_sessions_api_admin_triggers_clear_sessions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: number | string;
+                    };
+                };
+            };
+        };
+    };
+    trigger_clear_ai_usage_api_admin_triggers_clear_ai_usage_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: number | string;
+                    };
+                };
+            };
+        };
+    };
+    trigger_recompute_prs_api_admin_triggers_recompute_prs_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
     health_check_api_health_get: {
         parameters: {
             query?: never;
@@ -6872,57 +7643,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
-                };
-            };
-        };
-    };
-    admin_root_admin_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    admin_spa_fallback_admin__path__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                path: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
