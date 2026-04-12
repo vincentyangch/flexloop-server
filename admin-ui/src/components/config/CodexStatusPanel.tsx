@@ -97,7 +97,7 @@ export function CodexStatusPanel({
           }
         />
         <Field
-          label="Last refresh"
+          label={query.data?.days_until_expiry != null ? "Expires" : "Last refresh"}
           value={
             query.data?.last_refresh ? (
               <div className={cn("text-right", refreshTone)}>
@@ -105,7 +105,9 @@ export function CodexStatusPanel({
                   {new Date(query.data.last_refresh).toLocaleString()}
                 </div>
                 <div className="text-xs">
-                  {formatDaysAgo(query.data.days_since_refresh)}
+                  {query.data.days_until_expiry != null
+                    ? formatDaysFromNow(query.data.days_until_expiry)
+                    : formatDaysAgo(query.data.days_since_refresh)}
                 </div>
               </div>
             ) : (
@@ -189,6 +191,12 @@ function getAuthModeBadge(mode?: string | null) {
         className:
           "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
       };
+    case "openclaw-oauth":
+      return {
+        label: "openclaw",
+        className:
+          "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+      };
     case "api_key":
       return {
         label: "api_key",
@@ -216,4 +224,15 @@ function formatDaysAgo(daysSinceRefresh?: number | null) {
 
   const roundedDays = Math.round(daysSinceRefresh);
   return `${roundedDays} ${roundedDays === 1 ? "day" : "days"} ago`;
+}
+
+function formatDaysFromNow(daysUntilExpiry?: number | null) {
+  if (daysUntilExpiry == null) {
+    return "—";
+  }
+  if (daysUntilExpiry <= 0) {
+    return "expired";
+  }
+  const roundedDays = Math.round(daysUntilExpiry);
+  return `${roundedDays} ${roundedDays === 1 ? "day" : "days"} from now`;
 }
