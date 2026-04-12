@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, ConfigDict
@@ -22,8 +23,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from flexloop.admin.audit import write_audit_log
 from flexloop.admin.auth import require_admin
+from flexloop.ai.codex_auth import CodexAuthReader
 from flexloop.ai.factory import create_adapter
-from flexloop.config import refresh_settings_from_db
+from flexloop.config import refresh_settings_from_db, settings
 from flexloop.db.engine import get_session
 from flexloop.models.admin_user import AdminUser
 from flexloop.models.app_settings import AppSettings
@@ -103,6 +105,18 @@ class TestConnectionResponse(BaseModel):
     error: str | None
 
 
+class CodexStatusResponse(BaseModel):
+    status: str
+    file_exists: bool
+    file_path: str
+    auth_mode: str | None = None
+    last_refresh: datetime | None = None
+    days_since_refresh: float | None = None
+    account_email: str | None = None
+    error: str | None = None
+    error_code: str | None = None
+
+
 # --- Helpers ---------------------------------------------------------------
 
 
@@ -150,6 +164,14 @@ async def _load_row(db: AsyncSession) -> AppSettings:
 
 
 # --- GET -------------------------------------------------------------------
+
+
+@router.get("/codex-status", response_model=CodexStatusResponse)
+async def get_codex_status(
+    _admin: AdminUser = Depends(require_admin),
+) -> CodexStatusResponse:
+    snapshot = CodexAuthReader(settings.codex_auth_file).snapshot()
+    return CodexStatusResponse.model_validate(snapshot.__dict__)
 
 
 @router.get("", response_model=AppSettingsResponse)
