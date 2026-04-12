@@ -51,6 +51,8 @@ class PlaygroundRunRequest(BaseModel):
     model_override: str | None = None
     api_key_override: str | None = None
     base_url_override: str | None = None
+    codex_auth_file_override: str | None = None
+    reasoning_effort_override: str | None = None
 
 
 # --- Helpers --------------------------------------------------------------
@@ -84,6 +86,16 @@ async def run_playground(
         if payload.base_url_override is not None
         else settings.ai_base_url
     )
+    codex_auth_file = (
+        payload.codex_auth_file_override
+        if payload.codex_auth_file_override is not None
+        else settings.codex_auth_file
+    )
+    reasoning_effort = (
+        payload.reasoning_effort_override
+        if payload.reasoning_effort_override is not None
+        else settings.ai_reasoning_effort
+    )
     temperature = (
         payload.temperature if payload.temperature is not None else settings.ai_temperature
     )
@@ -96,6 +108,8 @@ async def run_playground(
         model=model,
         api_key=api_key,
         base_url=base_url,
+        codex_auth_file=codex_auth_file,
+        reasoning_effort=reasoning_effort,
     )
 
     async def event_generator():

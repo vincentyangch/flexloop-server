@@ -46,6 +46,8 @@ def get_ai_coach() -> AICoach:
         model=settings.ai_model,
         api_key=settings.ai_api_key,
         base_url=settings.ai_base_url,
+        codex_auth_file=settings.codex_auth_file,
+        reasoning_effort=settings.ai_reasoning_effort,
     )
     prompt_manager = PromptManager(PROMPTS_DIR)
     return AICoach(adapter=adapter, prompt_manager=prompt_manager)
@@ -512,6 +514,8 @@ def get_plan_refiner() -> PlanRefiner:
     adapter = create_adapter(
         provider=settings.ai_provider, model=settings.ai_model,
         api_key=settings.ai_api_key, base_url=settings.ai_base_url,
+        codex_auth_file=settings.codex_auth_file,
+        reasoning_effort=settings.ai_reasoning_effort,
     )
     prompt_manager = PromptManager(PROMPTS_DIR)
     return PlanRefiner(adapter=adapter, prompt_manager=prompt_manager)

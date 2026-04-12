@@ -168,6 +168,9 @@ class TestTestAi:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         cookies = await _cookie(db_session)
+        monkeypatch.setattr(settings, "codex_auth_file", "/tmp/trigger-auth.json")
+        monkeypatch.setattr(settings, "ai_reasoning_effort", "high")
+        captured: dict[str, object] = {}
 
         class FakeAdapter:
             async def generate(self, **_: object) -> SimpleNamespace:
@@ -175,7 +178,7 @@ class TestTestAi:
 
         monkeypatch.setattr(
             "flexloop.ai.factory.create_adapter",
-            lambda **_: FakeAdapter(),
+            lambda **kwargs: captured.update(kwargs) or FakeAdapter(),
         )
 
         res = await client.post(
@@ -188,6 +191,8 @@ class TestTestAi:
         assert body["status"] == "ok"
         assert body["response_text"] == "hello"
         assert isinstance(body["latency_ms"], int)
+        assert captured["codex_auth_file"] == "/tmp/trigger-auth.json"
+        assert captured["reasoning_effort"] == "high"
 
 
 class TestRunMigrations:

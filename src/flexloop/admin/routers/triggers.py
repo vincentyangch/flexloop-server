@@ -76,6 +76,8 @@ async def trigger_test_ai(
             model=settings.ai_model,
             api_key=settings.ai_api_key,
             base_url=settings.ai_base_url,
+            codex_auth_file=settings.codex_auth_file,
+            reasoning_effort=settings.ai_reasoning_effort,
         )
         response = await asyncio.wait_for(
             adapter.generate(

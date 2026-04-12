@@ -172,6 +172,7 @@ class TestPlaygroundRun:
             captured["model"] = model
             captured["api_key"] = api_key
             captured["base_url"] = base_url
+            captured.update(kwargs)
             return _FakeAdapter()
 
         monkeypatch.setattr(
@@ -188,6 +189,8 @@ class TestPlaygroundRun:
                 "model_override": "claude-test",
                 "api_key_override": "sk-override",
                 "base_url_override": "https://override.example.com",
+                "codex_auth_file_override": "/tmp/playground-auth.json",
+                "reasoning_effort_override": "minimal",
             },
             cookies=cookies,
             headers={"Origin": ORIGIN},
@@ -197,6 +200,8 @@ class TestPlaygroundRun:
         assert captured["model"] == "claude-test"
         assert captured["api_key"] == "sk-override"
         assert captured["base_url"] == "https://override.example.com"
+        assert captured["codex_auth_file"] == "/tmp/playground-auth.json"
+        assert captured["reasoning_effort"] == "minimal"
 
 
 class TestPlaygroundTemplates:
