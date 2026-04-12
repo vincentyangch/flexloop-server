@@ -79,8 +79,9 @@ After `_load_file_with_retry()` returns a parsed dict:
 | Has `auth_mode` key | Codex CLI | Existing validation path (unchanged) |
 | Neither | Unknown | Raise `CodexAuthMalformed` |
 
-Detection happens once per `_load_and_validate()` call, before any
-field-level validation.
+OpenClaw is checked first; Codex CLI is the fallback. Detection
+happens once per `_load_and_validate()` call, before any field-level
+validation.
 
 ## 5. OpenClaw profile extraction
 
@@ -123,11 +124,23 @@ set (OpenClaw path), otherwise falls back to `days_since_refresh`
 `datetime.fromtimestamp(expires_at / 1000, tz=timezone.utc)` and
 labeled as "Expires" in context.
 
+OpenClaw's `expires_at` represents the *session* expiry — the
+timestamp after which OpenClaw considers the entire auth profile
+stale and will re-run the OAuth flow. This is distinct from the
+short-lived access token (which expires in ~1 hour and is silently
+refreshed by OpenClaw using the refresh token). When `expires_at`
+passes, the operator must re-authenticate interactively.
+
 Thresholds for `days_until_expiry`:
 - `> 5 days` → healthy
 - `2-5 days` → degraded_yellow
 - `< 2 days` → degraded_red
 - `<= 0` (already expired) → down
+
+When `expires_at` is missing from the profile, treat freshness as
+unknown (same as Codex CLI missing `last_refresh`): `days_until_expiry`
+is `None`, status is `healthy`. The token is still usable — we just
+can't report how long until it expires.
 
 ### 5.2 `auth_mode` in snapshot
 
@@ -147,6 +160,7 @@ file format is active.
 | OpenClaw format but no `openai-codex` profile | `CodexAuthWrongMode` | `wrong_mode` |
 | OpenClaw profile has `type != "oauth"` | `CodexAuthWrongMode` | `wrong_mode` |
 | OpenClaw profile missing `access_token` | `CodexAuthMalformed` | `malformed` |
+| OpenClaw profile missing `expires_at` | (not an error) | freshness unknown, status healthy |
 | Codex CLI format errors | Unchanged from current behavior | Unchanged |
 
 ## 7. Files changed
@@ -159,8 +173,24 @@ file format is active.
 - Add `days_until_expiry` field to `CodexAuthSnapshot`
 - Update `_classify_freshness()` to accept either metric
 - Update `snapshot()` to populate `days_until_expiry` for OpenClaw path
+- Make the `CodexAuthWrongMode` catch block in `snapshot()` format-aware:
+  when `_validate_openclaw()` raises `CodexAuthWrongMode`, attach
+  OpenClaw-specific fields (`accountId`, `expires_at`) to the exception's
+  `data` dict so `snapshot()` can populate `account_email` and expiry
+  info even in error states
 
-### 7.2 `tests/test_codex_auth.py`
+### 7.2 `src/flexloop/admin/routers/config.py`
+
+Add `days_until_expiry: float | None = None` to `CodexStatusResponse`
+so the new field is serialized to the frontend. Regenerate
+`admin-ui/src/lib/api.types.ts` afterward.
+
+### 7.3 `admin-ui/src/lib/api.types.ts`
+
+Regenerate from OpenAPI schema to pick up the new
+`days_until_expiry` field on `CodexStatusResponse`.
+
+### 7.4 `tests/test_codex_auth.py`
 
 New test cases:
 - OpenClaw happy path (single codex profile, valid token)
@@ -170,27 +200,31 @@ New test cases:
 - OpenClaw missing access_token → malformed
 - OpenClaw expired token → down status
 - OpenClaw nearing expiry → degraded_yellow / degraded_red
+- OpenClaw missing `expires_at` → healthy with unknown freshness
+- OpenClaw `expires_at` = 0 (epoch zero) → down
 - Format detection: ambiguous file (has both keys) → prefer OpenClaw
   if `version` + `profiles` present
 
-### 7.3 `tests/fixtures/auth_json_factory.py`
+### 7.5 `tests/fixtures/auth_json_factory.py`
 
 Add `openclaw_auth_profiles()` builder that generates valid
 `auth-profiles.json` content with configurable profiles, expiry, and
 account IDs.
 
-### 7.4 `admin-ui/src/components/forms/ConfigForm.tsx`
+### 7.6 `admin-ui/src/components/forms/ConfigForm.tsx`
 
-Update the `codex_auth_file` input placeholder from its current value
-to: `~/.codex/auth.json or ~/.openclaw/.../auth-profiles.json`
+Add a placeholder to the `codex_auth_file` input (it currently has
+none): `~/.codex/auth.json or ~/.openclaw/.../auth-profiles.json`
 
-### 7.5 `admin-ui/src/components/config/CodexStatusPanel.tsx`
+### 7.7 `admin-ui/src/components/config/CodexStatusPanel.tsx`
 
-When `auth_mode == "openclaw-oauth"`, display the `last_refresh`
-timestamp with label "Expires" instead of "Last refresh". Show
-`days_until_expiry` as "N days from now" instead of "N days ago".
+When `days_until_expiry` is present in the API response, display
+`last_refresh` with label "Expires" instead of "Last refresh", and
+format the duration as "N days from now" instead of "N days ago".
+The frontend checks for the presence of `days_until_expiry` to decide
+which label and format to use.
 
-### 7.6 `deploy/README.md` + `deploy/agent-runbook.md`
+### 7.8 `deploy/README.md` + `deploy/agent-runbook.md`
 
 Update the Codex provider documentation to note that both
 `~/.codex/auth.json` and OpenClaw `auth-profiles.json` are supported.
@@ -205,7 +239,6 @@ Update the pre-flight check to also look for the OpenClaw path.
 - Health endpoint — calls `reader.snapshot()` which returns the same
   dataclass
 - Factory — creates the reader with the same path
-- Config router — passes the same path string
 
 ## 9. Testing strategy
 
