@@ -56,6 +56,7 @@ class CodexAuthSnapshot:
     auth_mode: str | None = None
     last_refresh: datetime | None = None
     days_since_refresh: float | None = None
+    days_until_expiry: float | None = None
     account_email: str | None = None
 
     error: str | None = None
