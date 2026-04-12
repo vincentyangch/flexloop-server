@@ -23,6 +23,8 @@ _READ_RETRY_SLEEP_SECONDS = 0.005
 
 _YELLOW_THRESHOLD_DAYS = 5.0
 _RED_THRESHOLD_DAYS = 9.0
+_EXPIRY_YELLOW_THRESHOLD_DAYS = 5.0
+_EXPIRY_RED_THRESHOLD_DAYS = 2.0
 
 
 class CodexAuthError(Exception):
@@ -102,6 +104,8 @@ class CodexAuthReader:
             )
         except CodexAuthWrongMode as e:
             data = e.data
+            # OpenClaw profiles expose accountId / expires_at, unlike Codex CLI auth.json,
+            # so those keys let snapshot() preserve the OpenClaw-specific metadata on errors.
             if "accountId" in data or "expires_at" in data:
                 expiry_dt = self._parse_expires_at(data.get("expires_at"))
                 return CodexAuthSnapshot(
@@ -357,13 +361,13 @@ class CodexAuthReader:
                 "expired",
                 f"session expired {abs(days_until_expiry):.1f} days ago",
             )
-        if days_until_expiry < 2.0:
+        if days_until_expiry < _EXPIRY_RED_THRESHOLD_DAYS:
             return (
                 "degraded_red",
                 None,
                 f"session expires in {days_until_expiry:.1f} days",
             )
-        if days_until_expiry < 5.0:
+        if days_until_expiry < _EXPIRY_YELLOW_THRESHOLD_DAYS:
             return (
                 "degraded_yellow",
                 None,

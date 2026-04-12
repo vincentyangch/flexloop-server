@@ -493,6 +493,7 @@ def test_openclaw_snapshot_wrong_mode_preserves_metadata(tmp_path):
     make_openclaw_auth_profiles(auth_file, profile_type="api_key")
     snap = CodexAuthReader(str(auth_file)).snapshot()
     assert snap.status == "down"
+    assert snap.auth_mode == "api_key"
     assert snap.error_code == "wrong_mode"
 
 
