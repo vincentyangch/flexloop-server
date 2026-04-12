@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from flexloop.admin.auth import require_admin
 from flexloop.admin.log_handler import admin_ring_buffer
+from flexloop.ai.codex_auth import CodexAuthReader
 from flexloop.config import settings as _settings
 from flexloop.db.engine import get_session
 
@@ -90,11 +91,38 @@ async def _check_database(db: AsyncSession) -> dict[str, Any]:
 async def _check_ai_provider() -> dict[str, Any]:
     global _ai_cache, _ai_cache_at  # noqa: PLW0603
     now = time.time()
-    if _ai_cache and (now - _ai_cache_at) < 60:
+    current_provider = _settings.ai_provider
+    if (
+        _ai_cache is not None
+        and _ai_cache.get("provider") == current_provider
+        and (now - _ai_cache_at) < 60
+    ):
         return {**_ai_cache, "cached": True}
 
-    provider = _settings.ai_provider
+    provider = current_provider
     model = _settings.ai_model
+
+    if provider == "openai-codex":
+        snapshot = CodexAuthReader(_settings.codex_auth_file).snapshot()
+        result: dict[str, Any] = {
+            "status": snapshot.status,
+            "provider": provider,
+            "model": model,
+            "has_key": False,
+            "reachable": False,
+            "file_exists": snapshot.file_exists,
+            "file_path": snapshot.file_path,
+            "auth_mode": snapshot.auth_mode,
+            "last_refresh": snapshot.last_refresh,
+            "days_since_refresh": snapshot.days_since_refresh,
+            "account_email": snapshot.account_email,
+            "error": snapshot.error,
+            "error_code": snapshot.error_code,
+        }
+        _ai_cache = result
+        _ai_cache_at = now
+        return result
+
     api_key = _settings.ai_api_key
     base_url = _settings.ai_base_url or "https://api.openai.com"
 
