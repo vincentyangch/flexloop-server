@@ -99,12 +99,13 @@ row. `.env` values are just cold-start defaults. After first boot,
 edit them from the admin **Config** page — no restart needed.
 
 **Using the Codex (OAuth) provider:** If this VPS also runs OpenClaw
-(or any tool that maintains `~/.codex/auth.json`), you can use the
-`openai-codex` provider instead of providing an API key. After first
-login, go to **Config**, pick **OpenAI Codex (OAuth)**, and save. The
-Codex status panel shows whether the session file is healthy. See
-`docs/superpowers/specs/2026-04-11-codex-oauth-provider-design.md`
-for details.
+(or any tool that maintains `~/.codex/auth.json` or
+`~/.openclaw/.../auth-profiles.json`), you can use the `openai-codex`
+provider instead of providing an API key. After first login, go to
+**Config**, pick **OpenAI Codex (OAuth)**, set the auth file path to
+whichever file exists on this system, and save. Both Codex CLI and
+OpenClaw auth file formats are auto-detected. The Codex status panel
+shows whether the session file is healthy.
 
 ## 6. First boot (runs migrations)
 

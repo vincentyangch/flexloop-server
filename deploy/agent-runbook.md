@@ -56,9 +56,11 @@ test "$VPS_IP" = "$DNS_IP" && echo "dns: ok" || echo "dns: MISMATCH - fix before
 ```bash
 # 4. Codex session (soft check — doesn't block deploy)
 if [ -f /home/ubuntu/.codex/auth.json ]; then
-    echo "codex: auth.json present (openai-codex provider ready)"
+    echo "codex: ~/.codex/auth.json present (Codex CLI format)"
+elif [ -f /home/ubuntu/.openclaw/agents/main/agent/auth-profiles.json ]; then
+    echo "codex: OpenClaw auth-profiles.json present (OpenClaw format)"
 else
-    echo "codex: auth.json missing — run 'codex login' or 'openclaw auth login --provider openai-codex' if you plan to use openai-codex provider"
+    echo "codex: no auth file found — run 'codex login' or configure OpenClaw if you plan to use openai-codex provider"
 fi
 ```
 
