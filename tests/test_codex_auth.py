@@ -494,3 +494,23 @@ def test_openclaw_snapshot_wrong_mode_preserves_metadata(tmp_path):
     snap = CodexAuthReader(str(auth_file)).snapshot()
     assert snap.status == "down"
     assert snap.error_code == "wrong_mode"
+
+
+def test_format_detection_prefers_openclaw_when_ambiguous(tmp_path):
+    """A file with both version+profiles AND auth_mode should be treated as OpenClaw."""
+    auth_file = tmp_path / "auth.json"
+    data = {
+        "version": 1,
+        "profiles": {
+            "openai-codex:default": {
+                "type": "oauth",
+                "provider": "openai-codex",
+                "access_token": "oc-token",
+            }
+        },
+        "auth_mode": "chatgpt",
+    }
+    auth_file.write_text(json.dumps(data))
+    reader = CodexAuthReader(str(auth_file))
+    token = reader.read_access_token()
+    assert token == "oc-token"
