@@ -139,10 +139,19 @@ class CodexAuthReader:
     def _load_and_validate(self) -> tuple[dict[str, Any], str]:
         """Read, parse, and validate the file. Return ``(data, access_token)``."""
         data = self._load_file_with_retry()
-        if "auth_mode" not in data:
-            raise CodexAuthMalformed(
-                f"auth_mode field missing from {self._resolved_path!r}"
-            )
+
+        if "version" in data and "profiles" in data:
+            return self._validate_openclaw(data)
+        if "auth_mode" in data:
+            return self._validate_codex_cli(data)
+
+        raise CodexAuthMalformed(
+            f"unrecognized auth file format in {self._resolved_path!r}: "
+            f"expected 'version'+'profiles' (OpenClaw) or 'auth_mode' (Codex CLI)"
+        )
+
+    def _validate_codex_cli(self, data: dict[str, Any]) -> tuple[dict[str, Any], str]:
+        """Validate a Codex CLI auth.json file."""
         if data["auth_mode"] != "chatgpt":
             raise CodexAuthWrongMode(
                 f"auth_mode is {data['auth_mode']!r}, expected 'chatgpt'",
@@ -159,6 +168,53 @@ class CodexAuthReader:
                 f"tokens.access_token missing from {self._resolved_path!r}"
             )
         return data, access_token
+
+    def _validate_openclaw(self, data: dict[str, Any]) -> tuple[dict[str, Any], str]:
+        """Validate an OpenClaw auth-profiles.json file.
+
+        Finds the first profile with ``provider == "openai-codex"``,
+        checks its type, and extracts the access token. Returns a
+        normalized dict with ``auth_mode = "openclaw-oauth"`` plus the
+        original profile fields.
+        """
+        profiles = data.get("profiles")
+        if not isinstance(profiles, dict):
+            raise CodexAuthMalformed(
+                f"profiles object missing from {self._resolved_path!r}"
+            )
+
+        codex_profile: dict[str, Any] | None = None
+        for _key, profile in profiles.items():
+            if isinstance(profile, dict) and profile.get("provider") == "openai-codex":
+                codex_profile = profile
+                break
+
+        if codex_profile is None:
+            raise CodexAuthWrongMode(
+                f"no openai-codex profile found in {self._resolved_path!r}",
+                data=data,
+            )
+
+        if codex_profile.get("type") != "oauth":
+            raise CodexAuthWrongMode(
+                f"openai-codex profile type is {codex_profile.get('type')!r}, "
+                f"expected 'oauth'",
+                data=codex_profile,
+            )
+
+        access_token = codex_profile.get("access_token")
+        if not access_token:
+            raise CodexAuthMalformed(
+                f"access_token missing from openai-codex profile in "
+                f"{self._resolved_path!r}"
+            )
+
+        normalized: dict[str, Any] = {
+            "auth_mode": "openclaw-oauth",
+            "account_id": codex_profile.get("accountId"),
+            "expires_at": codex_profile.get("expires_at"),
+        }
+        return normalized, access_token
 
     def _load_file_with_retry(self) -> dict[str, Any]:
         """Read + json.load the file with retry on JSONDecodeError."""

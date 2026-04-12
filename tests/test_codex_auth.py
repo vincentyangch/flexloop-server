@@ -19,7 +19,10 @@ from flexloop.ai.codex_auth import (
     CodexAuthSnapshot,
     CodexAuthWrongMode,
 )
-from tests.fixtures.auth_json_factory import make_auth_json
+from tests.fixtures.auth_json_factory import (
+    make_auth_json,
+    make_openclaw_auth_profiles,
+)
 
 
 # ---- read_access_token() raise-path tests ----
@@ -361,3 +364,31 @@ def test_snapshot_never_raises_under_any_fixture(tmp_path, kwargs):
     snap = reader.snapshot()
     assert isinstance(snap, CodexAuthSnapshot)
     assert snap.file_path
+
+
+# ---- OpenClaw auth-profiles.json format tests ----
+
+
+def test_openclaw_happy_path_returns_token(tmp_path):
+    auth_file = tmp_path / "auth-profiles.json"
+    make_openclaw_auth_profiles(auth_file)
+    reader = CodexAuthReader(str(auth_file))
+    token = reader.read_access_token()
+    assert token == "test-access-token-abc123"
+
+
+def test_openclaw_multiple_profiles_picks_codex(tmp_path):
+    auth_file = tmp_path / "auth-profiles.json"
+    make_openclaw_auth_profiles(
+        auth_file,
+        extra_profiles={
+            "anthropic:default": {
+                "type": "api_key",
+                "provider": "anthropic",
+                "access_token": "sk-ant-wrong-token",
+            },
+        },
+    )
+    reader = CodexAuthReader(str(auth_file))
+    token = reader.read_access_token()
+    assert token == "test-access-token-abc123"
