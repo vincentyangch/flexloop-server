@@ -40,6 +40,8 @@ class Settings(BaseSettings):
     ai_model: str = "gpt-4o-mini"
     ai_api_key: str = ""
     ai_base_url: str = ""
+    codex_auth_file: str = "~/.codex/auth.json"
+    ai_reasoning_effort: str = "medium"
     ai_temperature: float = 0.7
     ai_max_tokens: int = 2000
     ai_review_frequency: str = "block"
@@ -59,6 +61,8 @@ _DB_BACKED_FIELDS = (
     "ai_model",
     "ai_api_key",
     "ai_base_url",
+    "codex_auth_file",
+    "ai_reasoning_effort",
     "ai_temperature",
     "ai_max_tokens",
     "ai_review_frequency",

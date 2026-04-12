@@ -92,11 +92,15 @@ async def test_app_settings_can_be_created(db_session):
         ai_review_frequency="block",
         ai_review_block_weeks=6,
         admin_allowed_origins=["http://localhost:5173"],
+        codex_auth_file="~/.codex/auth.json",
+        ai_reasoning_effort="medium",
     )
     db_session.add(row)
     await db_session.flush()
     assert row.id == 1
     assert row.admin_allowed_origins == ["http://localhost:5173"]
+    assert row.codex_auth_file == "~/.codex/auth.json"
+    assert row.ai_reasoning_effort == "medium"
 
 
 async def test_model_pricing_can_be_created(db_session):

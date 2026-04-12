@@ -16,6 +16,12 @@ class AppSettings(Base):
     ai_model: Mapped[str] = mapped_column(String(128), nullable=False)
     ai_api_key: Mapped[str] = mapped_column(String(256), nullable=False, default="")
     ai_base_url: Mapped[str] = mapped_column(String(256), nullable=False, default="")
+    codex_auth_file: Mapped[str] = mapped_column(
+        String(512), nullable=False, server_default="~/.codex/auth.json"
+    )
+    ai_reasoning_effort: Mapped[str] = mapped_column(
+        String(16), nullable=False, server_default="medium"
+    )
     ai_temperature: Mapped[float] = mapped_column(Float, nullable=False, default=0.7)
     ai_max_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=2000)
     ai_review_frequency: Mapped[str] = mapped_column(String(32), nullable=False, default="block")
