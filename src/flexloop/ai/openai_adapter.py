@@ -10,12 +10,30 @@ logger = logging.getLogger(__name__)
 
 
 class OpenAIAdapter(LLMAdapter):
+    _RERAISE_EXCEPTIONS: tuple[type[BaseException], ...] = ()
+
     def __init__(self, model: str, api_key: str, base_url: str = "", **kwargs):
         super().__init__(model, api_key, base_url)
         client_kwargs = {"api_key": api_key}
         if base_url:
             client_kwargs["base_url"] = base_url
         self.client = AsyncOpenAI(**client_kwargs)
+
+    def _get_client(self) -> "AsyncOpenAI":
+        """Return the OpenAI client to use for this request.
+
+        Default: the persistent client built in ``__init__``. Subclasses
+        may override to return a fresh client per request.
+        """
+        return self.client
+
+    def _chat_extra_kwargs(self) -> dict:
+        """Return extra kwargs merged into ``chat.completions.create``."""
+        return {}
+
+    def _responses_extra_kwargs(self) -> dict:
+        """Return extra kwargs merged into ``responses.create``."""
+        return {}
 
     def _parse_response(self, response) -> LLMResponse:
         """Parse response handling both Chat Completions and Responses API formats."""
@@ -87,13 +105,16 @@ class OpenAIAdapter(LLMAdapter):
         streaming is enabled. The behavior is equivalent against the official
         OpenAI API.
         """
-        stream = await self.client.chat.completions.create(
+        client = self._get_client()
+        chat_extra = self._chat_extra_kwargs()
+        stream = await client.chat.completions.create(
             model=self.model,
             messages=messages,
             temperature=temperature,
             max_tokens=max_tokens,
             stream=True,
             stream_options={"include_usage": True},
+            **chat_extra,
         )
 
         content = ""
@@ -127,20 +148,27 @@ class OpenAIAdapter(LLMAdapter):
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ]
+        client = self._get_client()
+        responses_extra = self._responses_extra_kwargs()
         try:
             return await self._stream_chat_completion(messages, temperature, max_tokens)
+        except self._RERAISE_EXCEPTIONS:
+            raise
         except Exception as e:
             logger.warning(f"Chat Completions API failed: {e}. Trying Responses API.")
             # Fallback to Responses API
             try:
-                response = await self.client.responses.create(
+                response = await client.responses.create(
                     model=self.model,
                     instructions=system_prompt,
                     input=user_prompt,
                     temperature=temperature,
                     max_output_tokens=max_tokens,
+                    **responses_extra,
                 )
                 return self._parse_response(response)
+            except self._RERAISE_EXCEPTIONS:
+                raise
             except Exception as e2:
                 logger.error(f"Both API formats failed. Chat: {e}, Responses: {e2}")
                 raise e2
@@ -164,13 +192,16 @@ class OpenAIAdapter(LLMAdapter):
         ]
         start = _time.perf_counter()
         try:
-            stream = await self.client.chat.completions.create(
+            client = self._get_client()
+            chat_extra = self._chat_extra_kwargs()
+            stream = await client.chat.completions.create(
                 model=self.model,
                 messages=messages,
                 temperature=temperature,
                 max_tokens=max_tokens,
                 stream=True,
                 stream_options={"include_usage": True},
+                **chat_extra,
             )
             input_tokens = 0
             output_tokens = 0
@@ -204,8 +235,12 @@ class OpenAIAdapter(LLMAdapter):
     async def chat(
         self, messages: list[dict], temperature: float = 0.7, max_tokens: int = 2000,
     ) -> LLMResponse:
+        client = self._get_client()
+        responses_extra = self._responses_extra_kwargs()
         try:
             return await self._stream_chat_completion(messages, temperature, max_tokens)
+        except self._RERAISE_EXCEPTIONS:
+            raise
         except Exception as e:
             logger.warning(f"Chat Completions API failed: {e}. Trying Responses API.")
             # Extract system and user messages for Responses API
@@ -218,14 +253,17 @@ class OpenAIAdapter(LLMAdapter):
                     user_input = msg["content"]
 
             try:
-                response = await self.client.responses.create(
+                response = await client.responses.create(
                     model=self.model,
                     instructions=system_msg,
                     input=user_input,
                     temperature=temperature,
                     max_output_tokens=max_tokens,
+                    **responses_extra,
                 )
                 return self._parse_response(response)
+            except self._RERAISE_EXCEPTIONS:
+                raise
             except Exception as e2:
                 logger.error(f"Both API formats failed. Chat: {e}, Responses: {e2}")
                 raise e2
@@ -271,13 +309,16 @@ class OpenAIAdapter(LLMAdapter):
             else:
                 openai_messages.append(msg)
 
-        response = await self.client.chat.completions.create(
+        client = self._get_client()
+        chat_extra = self._chat_extra_kwargs()
+        response = await client.chat.completions.create(
             model=self.model,
             messages=openai_messages,
             tools=openai_tools,
             tool_choice=tc,
             temperature=temperature,
             max_tokens=max_tokens,
+            **chat_extra,
         )
 
         choice = response.choices[0]
