@@ -1,6 +1,10 @@
 """Integration tests for /api/admin/config."""
 from __future__ import annotations
 
+from types import SimpleNamespace
+
+import httpx
+import openai
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
@@ -11,9 +15,80 @@ from flexloop.config import _DB_BACKED_FIELDS, settings
 from flexloop.models.admin_audit_log import AdminAuditLog
 from flexloop.models.admin_user import AdminUser
 from flexloop.models.app_settings import AppSettings
+from tests.fixtures.auth_json_factory import make_auth_json
 
 
 ORIGIN = "http://localhost:5173"
+
+
+def _usage() -> SimpleNamespace:
+    return SimpleNamespace(
+        prompt_tokens=5,
+        completion_tokens=2,
+        prompt_tokens_details=SimpleNamespace(cached_tokens=0),
+    )
+
+
+def _stream_chunk(delta: str | None = None, usage=None) -> SimpleNamespace:
+    choices = []
+    if delta is not None:
+        choices = [SimpleNamespace(delta=SimpleNamespace(content=delta))]
+    return SimpleNamespace(choices=choices, usage=usage)
+
+
+class _CodexChatCompletions:
+    def __init__(self, owner: "_CodexAsyncOpenAI") -> None:
+        self._owner = owner
+
+    async def create(self, **kwargs):
+        _CodexAsyncOpenAI.chat_requests.append(
+            {"api_key": self._owner.api_key, "kwargs": kwargs}
+        )
+        if _CodexAsyncOpenAI.chat_error is not None:
+            raise _CodexAsyncOpenAI.chat_error
+
+        async def _stream():
+            yield _stream_chunk("codex ")
+            yield _stream_chunk("ok")
+            yield _stream_chunk(usage=_usage())
+
+        return _stream()
+
+
+class _CodexResponses:
+    def __init__(self, owner: "_CodexAsyncOpenAI") -> None:
+        self._owner = owner
+
+    async def create(self, **kwargs):
+        _CodexAsyncOpenAI.responses_requests.append(
+            {"api_key": self._owner.api_key, "kwargs": kwargs}
+        )
+        return SimpleNamespace(
+            output="fallback",
+            usage=SimpleNamespace(
+                input_tokens=3,
+                output_tokens=1,
+                input_tokens_details={"cached_tokens": 0},
+            ),
+        )
+
+
+class _CodexAsyncOpenAI:
+    chat_requests: list[dict] = []
+    responses_requests: list[dict] = []
+    chat_error: Exception | None = None
+
+    def __init__(self, *, api_key: str, base_url: str | None = None) -> None:
+        self.api_key = api_key
+        self.base_url = base_url
+        self.chat = SimpleNamespace(completions=_CodexChatCompletions(self))
+        self.responses = _CodexResponses(self)
+
+    @classmethod
+    def reset(cls) -> None:
+        cls.chat_requests = []
+        cls.responses_requests = []
+        cls.chat_error = None
 
 
 @pytest.fixture(autouse=True)
@@ -530,3 +605,113 @@ class TestTestConnection:
         assert "this_provider_does_not_exist_xyz" in body["error"]
         assert isinstance(body["latency_ms"], int)
         assert body["latency_ms"] >= 0
+
+    async def test_test_connection_codex_happy(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path,
+    ) -> None:
+        auth_file = make_auth_json(tmp_path / "auth.json")
+        _CodexAsyncOpenAI.reset()
+        monkeypatch.setattr(
+            "flexloop.ai.openai_codex_adapter.AsyncOpenAI", _CodexAsyncOpenAI
+        )
+
+        _, cookies = await _make_admin_and_cookie(db_session)
+        row = await _seed_default_app_settings(db_session)
+        row.ai_provider = "openai-codex"
+        row.ai_model = "gpt-5.1-codex-max"
+        row.codex_auth_file = str(auth_file)
+        row.ai_reasoning_effort = "high"
+        await db_session.commit()
+
+        res = await client.post(
+            "/api/admin/config/test-connection",
+            json={},
+            cookies=cookies,
+            headers={"Origin": ORIGIN},
+        )
+
+        assert res.status_code == 200
+        body = res.json()
+        assert body["status"] == "ok"
+        assert body["response_text"] == "codex ok"
+        assert _CodexAsyncOpenAI.chat_requests[-1]["api_key"] == "test-access-token-abc123"
+        assert _CodexAsyncOpenAI.chat_requests[-1]["kwargs"]["reasoning_effort"] == "high"
+
+    async def test_test_connection_codex_missing_file(
+        self, client: AsyncClient, db_session: AsyncSession, tmp_path
+    ) -> None:
+        valid_auth_file = make_auth_json(tmp_path / "saved-auth.json")
+        missing_auth_file = tmp_path / "missing-auth.json"
+
+        _, cookies = await _make_admin_and_cookie(db_session)
+        row = await _seed_default_app_settings(db_session)
+        row.ai_provider = "openai-codex"
+        row.ai_model = "gpt-5.1-codex-max"
+        row.codex_auth_file = str(valid_auth_file)
+        row.ai_reasoning_effort = "medium"
+        await db_session.commit()
+
+        res = await client.post(
+            "/api/admin/config/test-connection",
+            json={
+                "provider": "openai-codex",
+                "model": "gpt-5.1-codex-max",
+                "codex_auth_file": str(missing_auth_file),
+                "reasoning_effort": "minimal",
+            },
+            cookies=cookies,
+            headers={"Origin": ORIGIN},
+        )
+
+        assert res.status_code == 200
+        body = res.json()
+        assert body["status"] == "error"
+        assert body["response_text"] is None
+        assert "not found" in body["error"]
+
+    async def test_test_connection_codex_expired_token(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path,
+    ) -> None:
+        auth_file = make_auth_json(tmp_path / "auth.json")
+        request = httpx.Request("POST", "https://api.openai.test/chat")
+        response = httpx.Response(401, request=request)
+        _CodexAsyncOpenAI.reset()
+        _CodexAsyncOpenAI.chat_error = openai.AuthenticationError(
+            "expired token", response=response, body=None
+        )
+        monkeypatch.setattr(
+            "flexloop.ai.openai_codex_adapter.AsyncOpenAI", _CodexAsyncOpenAI
+        )
+
+        _, cookies = await _make_admin_and_cookie(db_session)
+        row = await _seed_default_app_settings(db_session)
+        row.ai_provider = "openai-codex"
+        row.ai_model = "gpt-5.1-codex-max"
+        row.codex_auth_file = str(auth_file)
+        row.ai_reasoning_effort = "low"
+        await db_session.commit()
+
+        res = await client.post(
+            "/api/admin/config/test-connection",
+            json={"reasoning_effort": "minimal"},
+            cookies=cookies,
+            headers={"Origin": ORIGIN},
+        )
+
+        assert res.status_code == 200
+        body = res.json()
+        assert body["status"] == "error"
+        assert body["response_text"] is None
+        assert "expired token" in body["error"]
+        assert (
+            _CodexAsyncOpenAI.chat_requests[-1]["kwargs"]["reasoning_effort"]
+            == "minimal"
+        )

@@ -287,6 +287,16 @@ async def test_connection(
     model = payload.model or row.ai_model
     api_key = payload.api_key if payload.api_key is not None else row.ai_api_key
     base_url = payload.base_url if payload.base_url is not None else row.ai_base_url
+    codex_auth_file = (
+        payload.codex_auth_file
+        if payload.codex_auth_file is not None
+        else row.codex_auth_file
+    )
+    reasoning_effort = (
+        payload.reasoning_effort
+        if payload.reasoning_effort is not None
+        else row.ai_reasoning_effort
+    )
     temperature = (
         payload.temperature if payload.temperature is not None else row.ai_temperature
     )
@@ -301,6 +311,8 @@ async def test_connection(
             model=model,
             api_key=api_key,
             base_url=base_url,
+            codex_auth_file=codex_auth_file,
+            reasoning_effort=reasoning_effort,
         )
         llm_response = await asyncio.wait_for(
             adapter.generate(
