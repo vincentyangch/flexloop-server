@@ -128,10 +128,16 @@ class CodexAuthReader:
             )
         except CodexAuthWrongMode as e:
             data = e.data
-            # OpenClaw profiles expose accountId / expires_at, unlike Codex CLI auth.json,
-            # so those keys let snapshot() preserve the OpenClaw-specific metadata on errors.
-            if "accountId" in data or "expires_at" in data:
-                expiry_dt = self._parse_expires_at(data.get("expires_at"))
+            # OpenClaw profiles expose accountId/email and expires_at/expires,
+            # unlike Codex CLI auth.json, so those keys let snapshot() preserve
+            # the OpenClaw-specific metadata on errors.
+            has_openclaw_keys = any(
+                k in data for k in ("accountId", "email", "expires_at", "expires")
+            )
+            if has_openclaw_keys:
+                expiry_dt = self._parse_expires_at(
+                    data.get("expires_at") or data.get("expires")
+                )
                 return CodexAuthSnapshot(
                     status="down",
                     file_exists=True,
@@ -139,7 +145,9 @@ class CodexAuthReader:
                     auth_mode=data.get("type"),
                     last_refresh=expiry_dt,
                     days_until_expiry=self._compute_days_until(expiry_dt),
-                    account_email=data.get("accountId"),
+                    account_email=(
+                        data.get("accountId") or data.get("email")
+                    ),
                     error_code="wrong_mode",
                     error=str(e),
                 )
@@ -262,17 +270,26 @@ class CodexAuthReader:
                 data=codex_profile,
             )
 
-        access_token = codex_profile.get("access_token")
+        # Field names differ between OpenClaw versions:
+        #   current:  access, refresh, expires, email
+        #   legacy:   access_token, refresh_token, expires_at, accountId
+        access_token = (
+            codex_profile.get("access_token") or codex_profile.get("access")
+        )
         if not access_token:
             raise CodexAuthMalformed(
-                f"access_token missing from openai-codex profile in "
+                f"access_token/access missing from openai-codex profile in "
                 f"{self._resolved_path!r}"
             )
 
         normalized: dict[str, Any] = {
             "auth_mode": "openclaw-oauth",
-            "account_id": codex_profile.get("accountId"),
-            "expires_at": codex_profile.get("expires_at"),
+            "account_id": (
+                codex_profile.get("accountId") or codex_profile.get("email")
+            ),
+            "expires_at": (
+                codex_profile.get("expires_at") or codex_profile.get("expires")
+            ),
         }
         return normalized, access_token
 

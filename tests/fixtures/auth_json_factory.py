@@ -146,13 +146,13 @@ def make_openclaw_auth_profiles(
     profile: dict[str, Any] = {
         "type": profile_type,
         "provider": provider,
-        "refresh_token": refresh_token,
-        "accountId": account_id,
+        "refresh": refresh_token,
+        "email": account_id,
     }
     if not omit_access_token:
-        profile["access_token"] = access_token
+        profile["access"] = access_token
     if not omit_expires_at and expires_at is not None:
-        profile["expires_at"] = expires_at
+        profile["expires"] = expires_at
 
     profiles: dict[str, Any] = {f"{provider}:default": profile}
     if extra_profiles:

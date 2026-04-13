@@ -414,7 +414,7 @@ def test_openclaw_missing_access_token_raises_malformed(tmp_path):
     auth_file = tmp_path / "auth-profiles.json"
     make_openclaw_auth_profiles(auth_file, omit_access_token=True)
     reader = CodexAuthReader(str(auth_file))
-    with pytest.raises(CodexAuthMalformed, match="access_token missing"):
+    with pytest.raises(CodexAuthMalformed, match="access.* missing"):
         reader.read_access_token()
 
 

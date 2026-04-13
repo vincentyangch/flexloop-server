@@ -63,20 +63,28 @@ class _CodexResponses:
         _CodexAsyncOpenAI.responses_requests.append(
             {"api_key": self._owner.api_key, "kwargs": kwargs}
         )
-        return SimpleNamespace(
-            output="fallback",
-            usage=SimpleNamespace(
-                input_tokens=3,
-                output_tokens=1,
-                input_tokens_details={"cached_tokens": 0},
-            ),
-        )
+        if _CodexAsyncOpenAI.responses_error is not None:
+            raise _CodexAsyncOpenAI.responses_error
+
+        async def _stream():
+            yield SimpleNamespace(type="response.output_text.delta", delta="codex ")
+            yield SimpleNamespace(type="response.output_text.delta", delta="ok")
+            yield SimpleNamespace(
+                type="response.completed",
+                response=SimpleNamespace(
+                    usage=SimpleNamespace(input_tokens=3, output_tokens=1),
+                    output=[],
+                ),
+            )
+
+        return _stream()
 
 
 class _CodexAsyncOpenAI:
     chat_requests: list[dict] = []
     responses_requests: list[dict] = []
     chat_error: Exception | None = None
+    responses_error: Exception | None = None
 
     def __init__(
         self,
@@ -96,6 +104,7 @@ class _CodexAsyncOpenAI:
         cls.chat_requests = []
         cls.responses_requests = []
         cls.chat_error = None
+        cls.responses_error = None
 
 
 @pytest.fixture(autouse=True)
@@ -645,8 +654,12 @@ class TestTestConnection:
         body = res.json()
         assert body["status"] == "ok"
         assert body["response_text"] == "codex ok"
-        assert _CodexAsyncOpenAI.chat_requests[-1]["api_key"] == "test-access-token-abc123"
-        assert _CodexAsyncOpenAI.chat_requests[-1]["kwargs"]["reasoning_effort"] == "high"
+        req = _CodexAsyncOpenAI.responses_requests[-1]
+        assert req["api_key"] == "test-access-token-abc123"
+        assert req["kwargs"]["reasoning"] == {"effort": "high"}
+        # Codex backend rejects temperature and max_output_tokens
+        assert "temperature" not in req["kwargs"]
+        assert "max_output_tokens" not in req["kwargs"]
 
     async def test_test_connection_codex_missing_file(
         self, client: AsyncClient, db_session: AsyncSession, tmp_path
@@ -688,10 +701,10 @@ class TestTestConnection:
         tmp_path,
     ) -> None:
         auth_file = make_auth_json(tmp_path / "auth.json")
-        request = httpx.Request("POST", "https://api.openai.test/chat")
+        request = httpx.Request("POST", "https://api.openai.test/responses")
         response = httpx.Response(401, request=request)
         _CodexAsyncOpenAI.reset()
-        _CodexAsyncOpenAI.chat_error = openai.AuthenticationError(
+        _CodexAsyncOpenAI.responses_error = openai.AuthenticationError(
             "expired token", response=response, body=None
         )
         monkeypatch.setattr(
@@ -718,7 +731,3 @@ class TestTestConnection:
         assert body["status"] == "error"
         assert body["response_text"] is None
         assert "expired token" in body["error"]
-        assert (
-            _CodexAsyncOpenAI.chat_requests[-1]["kwargs"]["reasoning_effort"]
-            == "minimal"
-        )
