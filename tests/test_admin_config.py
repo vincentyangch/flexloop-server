@@ -78,9 +78,16 @@ class _CodexAsyncOpenAI:
     responses_requests: list[dict] = []
     chat_error: Exception | None = None
 
-    def __init__(self, *, api_key: str, base_url: str | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        api_key: str,
+        base_url: str | None = None,
+        default_headers: dict[str, str] | None = None,
+    ) -> None:
         self.api_key = api_key
         self.base_url = base_url
+        self.default_headers = default_headers
         self.chat = SimpleNamespace(completions=_CodexChatCompletions(self))
         self.responses = _CodexResponses(self)
 

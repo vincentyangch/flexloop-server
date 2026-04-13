@@ -77,6 +77,30 @@ class CodexAuthReader:
         _, access_token = self._load_and_validate()
         return access_token
 
+    def read_credential(self) -> tuple[str, str | None]:
+        """Return ``(access_token, account_id)``.
+
+        ``account_id`` comes from the auth file itself — OpenClaw profiles
+        store it as ``accountId``, Codex CLI files store it as
+        ``tokens.account_id``.  Returns *None* when the file does not
+        contain an account ID (the caller can still try JWT extraction).
+        """
+        data, access_token = self._load_and_validate()
+        auth_mode = data.get("auth_mode")
+
+        if auth_mode == "openclaw-oauth":
+            aid = data.get("account_id")
+            return access_token, aid if isinstance(aid, str) else None
+
+        # Codex CLI: tokens.account_id
+        tokens = data.get("tokens")
+        if isinstance(tokens, dict):
+            aid = tokens.get("account_id")
+            if isinstance(aid, str):
+                return access_token, aid
+
+        return access_token, None
+
     def snapshot(self) -> CodexAuthSnapshot:
         """Return a structured snapshot of the current file state.
 

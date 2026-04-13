@@ -515,3 +515,43 @@ def test_format_detection_prefers_openclaw_when_ambiguous(tmp_path):
     reader = CodexAuthReader(str(auth_file))
     token = reader.read_access_token()
     assert token == "oc-token"
+
+
+# ---- read_credential() tests ----
+
+
+def test_credential_openclaw_returns_account_id(tmp_path):
+    auth_file = tmp_path / "auth-profiles.json"
+    make_openclaw_auth_profiles(auth_file, account_id="acct_oc_42")
+    token, account_id = CodexAuthReader(str(auth_file)).read_credential()
+    assert token == "test-access-token-abc123"
+    assert account_id == "acct_oc_42"
+
+
+def test_credential_openclaw_none_when_account_id_missing(tmp_path):
+    auth_file = tmp_path / "auth-profiles.json"
+    make_openclaw_auth_profiles(auth_file, account_id=None)
+    token, account_id = CodexAuthReader(str(auth_file)).read_credential()
+    assert token == "test-access-token-abc123"
+    assert account_id is None
+
+
+def test_credential_codex_cli_returns_account_id(tmp_path):
+    """Codex CLI stores account_id inside the tokens object."""
+    auth_file = tmp_path / "auth.json"
+    make_auth_json(auth_file)
+    data = json.loads(auth_file.read_text())
+    data["tokens"]["account_id"] = "acct_cli_99"
+    auth_file.write_text(json.dumps(data))
+
+    token, account_id = CodexAuthReader(str(auth_file)).read_credential()
+    assert token == "test-access-token-abc123"
+    assert account_id == "acct_cli_99"
+
+
+def test_credential_codex_cli_none_when_no_account_id(tmp_path):
+    auth_file = tmp_path / "auth.json"
+    make_auth_json(auth_file)
+    token, account_id = CodexAuthReader(str(auth_file)).read_credential()
+    assert token == "test-access-token-abc123"
+    assert account_id is None

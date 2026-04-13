@@ -1,6 +1,8 @@
 """Unit tests for OpenAICodexAdapter."""
 from __future__ import annotations
 
+import base64
+import json
 from types import SimpleNamespace
 
 import httpx
@@ -12,8 +14,11 @@ from flexloop.ai.codex_auth import (
     CodexAuthMissing,
     CodexAuthWrongMode,
 )
-from flexloop.ai.openai_codex_adapter import OpenAICodexAdapter
-from tests.fixtures.auth_json_factory import make_auth_json
+from flexloop.ai.openai_codex_adapter import (
+    OpenAICodexAdapter,
+    _extract_chatgpt_account_id,
+)
+from tests.fixtures.auth_json_factory import make_auth_json, make_openclaw_auth_profiles
 
 
 def _usage():
@@ -78,9 +83,16 @@ class FakeAsyncOpenAI:
     responses_requests: list[dict] = []
     chat_error: Exception | None = None
 
-    def __init__(self, *, api_key: str, base_url: str | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        api_key: str,
+        base_url: str | None = None,
+        default_headers: dict[str, str] | None = None,
+    ) -> None:
         self.api_key = api_key
         self.base_url = base_url
+        self.default_headers = default_headers
         self.chat = SimpleNamespace(completions=FakeChatCompletions(self))
         self.responses = FakeResponses(self)
         FakeAsyncOpenAI.instances.append(self)
@@ -111,6 +123,21 @@ def _adapter(auth_file, reasoning_effort: str = "medium") -> OpenAICodexAdapter:
     )
 
 
+def _make_chatgpt_jwt(account_id: str = "acct_test123") -> str:
+    """Build a fake ChatGPT JWT containing chatgpt_account_id."""
+    header = base64.urlsafe_b64encode(
+        json.dumps({"alg": "none"}).encode()
+    ).rstrip(b"=").decode()
+    payload = base64.urlsafe_b64encode(
+        json.dumps({
+            "https://api.openai.com/auth": {
+                "chatgpt_account_id": account_id,
+            },
+        }).encode()
+    ).rstrip(b"=").decode()
+    return f"{header}.{payload}.sig"
+
+
 @pytest.mark.asyncio
 async def test_generate_reads_token_from_auth_file(tmp_path):
     auth_file = make_auth_json(tmp_path / "auth.json", access_token="token-A")
@@ -122,6 +149,10 @@ async def test_generate_reads_token_from_auth_file(tmp_path):
     assert FakeAsyncOpenAI.chat_requests[-1]["api_key"] == "token-A"
     assert adapter.api_key == "codex-oauth-placeholder"
     assert adapter.base_url == ""
+    # Per-request client must route through the ChatGPT backend Codex endpoint
+    assert FakeAsyncOpenAI.instances[-1].base_url == (
+        "https://chatgpt.com/backend-api/codex"
+    )
 
 
 @pytest.mark.asyncio
@@ -260,3 +291,89 @@ def test_reraise_exceptions_class_attribute():
         CodexAuthWrongMode,
         openai.AuthenticationError,
     )
+
+
+# ---- ChatGPT-Account-ID header tests ----
+
+
+@pytest.mark.asyncio
+async def test_chatgpt_account_id_header_sent_when_jwt_has_claim(tmp_path):
+    jwt_token = _make_chatgpt_jwt("acct_abc")
+    auth_file = make_auth_json(tmp_path / "auth.json", access_token=jwt_token)
+
+    await _adapter(auth_file).generate("system", "user")
+
+    client = FakeAsyncOpenAI.instances[-1]
+    assert client.default_headers == {"ChatGPT-Account-ID": "acct_abc"}
+
+
+@pytest.mark.asyncio
+async def test_chatgpt_account_id_header_absent_for_non_jwt_token(tmp_path):
+    auth_file = make_auth_json(tmp_path / "auth.json", access_token="plain-token")
+
+    await _adapter(auth_file).generate("system", "user")
+
+    client = FakeAsyncOpenAI.instances[-1]
+    assert client.default_headers is None
+
+
+@pytest.mark.asyncio
+async def test_openclaw_account_id_from_profile_not_jwt(tmp_path):
+    """OpenClaw profiles store accountId in the file, not the JWT.
+
+    The adapter must read it from the auth file via read_credential(),
+    not rely on JWT extraction alone.
+    """
+    auth_file = make_openclaw_auth_profiles(
+        tmp_path / "auth-profiles.json",
+        access_token="opaque-token-no-jwt",
+        account_id="acct_openclaw_77",
+    )
+
+    await _adapter(auth_file).generate("system", "user")
+
+    client = FakeAsyncOpenAI.instances[-1]
+    assert client.default_headers == {"ChatGPT-Account-ID": "acct_openclaw_77"}
+
+
+@pytest.mark.asyncio
+async def test_codex_cli_account_id_from_tokens_object(tmp_path):
+    """Codex CLI may store account_id in the tokens dict."""
+    auth_file = tmp_path / "auth.json"
+    make_auth_json(auth_file, access_token="plain-token")
+    data = json.loads(auth_file.read_text())
+    data["tokens"]["account_id"] = "acct_cli_55"
+    auth_file.write_text(json.dumps(data))
+
+    await _adapter(auth_file).generate("system", "user")
+
+    client = FakeAsyncOpenAI.instances[-1]
+    assert client.default_headers == {"ChatGPT-Account-ID": "acct_cli_55"}
+
+
+# ---- _extract_chatgpt_account_id unit tests ----
+
+
+def test_extract_account_id_from_valid_jwt():
+    token = _make_chatgpt_jwt("acct_42")
+    assert _extract_chatgpt_account_id(token) == "acct_42"
+
+
+def test_extract_account_id_returns_none_for_plain_string():
+    assert _extract_chatgpt_account_id("not-a-jwt") is None
+
+
+def test_extract_account_id_returns_none_for_missing_claim():
+    header = base64.urlsafe_b64encode(b'{"alg":"none"}').rstrip(b"=").decode()
+    payload = base64.urlsafe_b64encode(b'{"sub":"user"}').rstrip(b"=").decode()
+    assert _extract_chatgpt_account_id(f"{header}.{payload}.sig") is None
+
+
+def test_extract_account_id_returns_none_for_non_string_value():
+    header = base64.urlsafe_b64encode(b'{"alg":"none"}').rstrip(b"=").decode()
+    payload = base64.urlsafe_b64encode(
+        json.dumps({
+            "https://api.openai.com/auth": {"chatgpt_account_id": 12345},
+        }).encode()
+    ).rstrip(b"=").decode()
+    assert _extract_chatgpt_account_id(f"{header}.{payload}.sig") is None
