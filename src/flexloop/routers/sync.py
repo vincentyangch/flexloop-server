@@ -1,10 +1,13 @@
-from datetime import datetime
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from flexloop.db.engine import get_session
+from flexloop.models.cycle_tracker import CycleTracker
+from flexloop.models.plan import Plan, PlanDay
 from flexloop.models.workout import WorkoutSession, WorkoutSet
 
 
@@ -42,6 +45,45 @@ class SyncResponse(BaseModel):
 router = APIRouter(tags=["sync"])
 
 
+async def _advance_cycle_for_synced_workout(
+    data: SyncRequest,
+    workout_data: SyncWorkoutData,
+    session: AsyncSession,
+) -> None:
+    if (
+        workout_data.source != "plan"
+        or workout_data.plan_day_id is None
+        or workout_data.completed_at is None
+    ):
+        return
+
+    result = await session.execute(
+        select(CycleTracker).where(CycleTracker.user_id == data.user_id)
+    )
+    tracker = result.scalar_one_or_none()
+    if not tracker:
+        return
+
+    day_result = await session.execute(
+        select(PlanDay).where(
+            PlanDay.id == workout_data.plan_day_id,
+            PlanDay.plan_id == tracker.plan_id,
+            PlanDay.day_number == tracker.next_day_number,
+        )
+    )
+    completed_day = day_result.scalar_one_or_none()
+    if not completed_day:
+        return
+
+    plan_result = await session.execute(select(Plan).where(Plan.id == tracker.plan_id))
+    plan = plan_result.scalar_one_or_none()
+    if not plan:
+        return
+
+    tracker.next_day_number = (tracker.next_day_number % plan.cycle_length) + 1
+    tracker.last_completed_at = datetime.now(UTC)
+
+
 @router.post("/api/sync", response_model=SyncResponse)
 async def sync_data(data: SyncRequest, session: AsyncSession = Depends(get_session)):
     synced = 0
@@ -65,6 +107,7 @@ async def sync_data(data: SyncRequest, session: AsyncSession = Depends(get_sessi
             )
             session.add(workout_set)
 
+        await _advance_cycle_for_synced_workout(data, workout_data, session)
         synced += 1
 
     await session.commit()
