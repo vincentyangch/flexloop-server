@@ -46,6 +46,10 @@ def _run_migrations():
     conn.close()
 
     alembic_cfg = Config("alembic.ini")
+    # This runs inside the FastAPI process during startup and admin-triggered
+    # migrations; Alembic's fileConfig would otherwise replace app log handlers
+    # and disable uvicorn loggers.
+    alembic_cfg.attributes["configure_logger"] = False
     # Override the URL to use synchronous sqlite driver
     alembic_cfg.set_main_option("sqlalchemy.url", f"sqlite:///{db_path}")
     command.upgrade(alembic_cfg, "head")
